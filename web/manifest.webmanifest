@@ -1,0 +1,19 @@
+{
+  "name": "Ironfield",
+  "short_name": "Ironfield",
+  "description": "Farm by day, command mechs by dusk.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "fullscreen",
+  "orientation": "portrait",
+  "background_color": "#12180f",
+  "theme_color": "#1b2416",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

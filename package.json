@@ -1,0 +1,17 @@
+{
+  "name": "ironfield",
+  "version": "1.0.0",
+  "private": true,
+  "description": "A mobile browser game: farm by day, command auto-battling mechs by dusk. Mechabellum meets Harvest Moon.",
+  "type": "module",
+  "scripts": {
+    "start": "python3 server.py",
+    "test": "node tests/sim.test.mjs",
+    "test:matrix": "node tests/sim.test.mjs --matrix",
+    "test:browser": "PLAYWRIGHT_BROWSERS_PATH=/opt/pw-browsers node tests/smoke.test.mjs",
+    "test:all": "npm run test && npm run test:browser"
+  },
+  "devDependencies": {
+    "playwright": "^1.62.1"
+  }
+}
