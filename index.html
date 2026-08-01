@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<meta name="theme-color" content="#05060d">
+<title>CYBER MERGER — Idle Crew Simulator</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<!-- ============================================================
+     LAYER 1 — world canvas (city, rain, grids, buildings, FX)
+     ============================================================ -->
+<canvas id="world"></canvas>
+
+<!-- ============================================================
+     LAYER 2 — persistent HUD (resources, level, energy)
+     ============================================================ -->
+<div id="hud" class="hud hidden"></div>
+
+<!-- ============================================================
+     LAYER 3 — per-scene DOM overlay (panels, toolbars, buttons)
+     ============================================================ -->
+<div id="overlay"></div>
+
+<!-- ============================================================
+     LAYER 4 — toasts / modals / floating text
+     ============================================================ -->
+<div id="toasts"></div>
+<div id="modal-root"></div>
+
+<!-- boot screen shown until scripts finish wiring up -->
+<div id="boot"><span>BOOTING NET…</span></div>
+
+<!-- ---------- core ---------- -->
+<script src="js/core/util.js"></script>
+<script src="js/core/art.js"></script>
+<script src="js/core/audio.js"></script>
+<script src="js/core/rain.js"></script>
+
+<!-- ---------- data tables ---------- -->
+<script src="js/data/items.js"></script>
+<script src="js/data/buildings.js"></script>
+<script src="js/data/tech.js"></script>
+<script src="js/data/missions.js"></script>
+
+<!-- ---------- managers ---------- -->
+<script src="js/core/state.js"></script>
+<script src="js/core/ui.js"></script>
+
+<!-- ---------- scenes ---------- -->
+<script src="js/scenes/scene.js"></script>
+<script src="js/scenes/title.js"></script>
+<script src="js/scenes/base.js"></script>
+<script src="js/scenes/merge.js"></script>
+<script src="js/scenes/tech.js"></script>
+<script src="js/scenes/mission.js"></script>
+<script src="js/scenes/crew.js"></script>
+<script src="js/scenes/deals.js"></script>
+<script src="js/scenes/strategy.js"></script>
+
+<!-- ---------- bootstrap ---------- -->
+<script src="js/main.js"></script>
+</body>
+</html>
