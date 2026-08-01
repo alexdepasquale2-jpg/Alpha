@@ -9,6 +9,7 @@ import { getState, setState, createNewGame } from './core/state.js';
 import { initToasts, toast } from './ui/toast.js';
 import { COLORS } from './ui/theme.js';
 import { TitleScene } from './scenes/title.js';
+import { WorldScene } from './world/worldScene.js';
 
 export const AUTOSAVE_SLOT = 'auto';
 
@@ -46,6 +47,11 @@ class Game {
       }
     });
 
+    // Widgets that need a dedicated finger (the thumbstick, the action
+    // button) take ownership of a pointer at press time. Delegating to the top
+    // scene keeps that decision where the widgets are.
+    this.input.claimHandler = (pointer) => this.scenes.top?.claimPointer?.(pointer) ?? null;
+
     this.scenes.replace(new TitleScene(this));
     this.loop.start();
 
@@ -73,10 +79,9 @@ class Game {
   /** Start a brand-new run and hand control to the farm. */
   async newGame(opts = {}) {
     setState(createNewGame(opts));
-    const { FarmScene } = await import('./farm/farmScene.js');
     const { initNewRun } = await import('./farm/farmSim.js');
     initNewRun(this.state);
-    this.scenes.replace(new FarmScene(this));
+    this.scenes.replace(new WorldScene(this));
     await this.save();
   }
 
@@ -84,8 +89,7 @@ class Game {
   async continueGame(slot = AUTOSAVE_SLOT) {
     const loaded = await saves.load(slot);
     if (!loaded) return false;
-    const { FarmScene } = await import('./farm/farmScene.js');
-    this.scenes.replace(new FarmScene(this));
+    this.scenes.replace(new WorldScene(this));
     return true;
   }
 

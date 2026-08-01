@@ -259,7 +259,7 @@ export class DeployScene extends Scene {
               toast(`Fell back from ${res.territory.name}.`, 'bad');
             }
             await this.game.save();
-            this.game.scenes.popTo('FarmScene');
+            this.game.scenes.popTo('WorldScene');
           },
         },
       ],
@@ -271,7 +271,7 @@ export class DeployScene extends Scene {
   /** Called by BattleScene when it pops back after a round. */
   onRoundResolved() {
     const summary = assaultSummary();
-    if (!summary) { this.game.scenes.popTo('FarmScene'); return; }
+    if (!summary) { this.game.scenes.popTo('WorldScene'); return; }
     this._refreshList();
     this.selectedSquadId = null;
     if (summary.phase === 'tech') this._showTechOffer();
@@ -307,7 +307,7 @@ export class DeployScene extends Scene {
         onTap: async () => {
           this.card.hide();
           await this.game.save();
-          this.game.scenes.popTo('FarmScene');
+          this.game.scenes.popTo('WorldScene');
         },
       }],
     });
@@ -327,7 +327,7 @@ export class DeployScene extends Scene {
           onTap: async () => {
             this.card.hide();
             await this.game.save();
-            this.game.scenes.popTo('FarmScene');
+            this.game.scenes.popTo('WorldScene');
           },
         }],
       });
@@ -343,7 +343,7 @@ export class DeployScene extends Scene {
         onTap: async () => {
           this.card.hide();
           await this.game.save();
-          this.game.scenes.popTo('FarmScene');
+          this.game.scenes.popTo('WorldScene');
         },
       }],
     });

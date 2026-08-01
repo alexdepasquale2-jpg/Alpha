@@ -95,10 +95,109 @@ check('portrait layout detected', await page.evaluate(() => window.game.view.por
 
 console.log('\nNew run');
 await page.evaluate(() => window.game.newGame({ farmName: 'Smoke Test', seed: 1234 }));
-await page.waitForFunction(() => window.game.scenes.top?.name === 'FarmScene', null, { timeout: 5000 });
-check('farm scene is active', true);
+await page.waitForFunction(() => window.game.scenes.top?.name === 'WorldScene', null, { timeout: 5000 });
+check('world scene is active', true);
 check('starting seeds granted',
       await page.evaluate(() => (window.game.state.farm.inventory['seed:turnip'] ?? 0) > 0));
+
+console.log('\nWalking the world');
+const walk = await page.evaluate(async () => {
+  const scene = window.game.scenes.top;
+  const start = { x: scene.player.x, y: scene.player.y };
+
+  // Drive the player south-east for a second of simulated time.
+  for (let i = 0; i < 60; i++) scene.update(1 / 60);
+  const idle = { x: scene.player.x, y: scene.player.y };
+
+  scene.joystick.axis = { x: 1, y: 0, mag: 1 };
+  const axis = scene.joystick.axis;
+  for (let i = 0; i < 60; i++) scene.player.update(1 / 60, axis, scene.map);
+  const moved = { x: scene.player.x, y: scene.player.y };
+
+  return {
+    startedOnMap: scene.map.id,
+    stillWhenIdle: Math.hypot(idle.x - start.x, idle.y - start.y) < 1,
+    walkedRight: moved.x > idle.x + 20,
+    facing: scene.player.facing,
+    mapW: scene.map.w, mapH: scene.map.h,
+  };
+});
+check('spawned on the overworld', walk.startedOnMap === 'overworld');
+check('stands still with no input', walk.stillWhenIdle);
+check('walks when the stick is pushed', walk.walkedRight);
+check('faces the direction of travel', walk.facing === 2);
+check('the world is larger than a screen', walk.mapW >= 40 && walk.mapH >= 60);
+
+const townsfolk = await page.evaluate(async () => {
+  const scene = window.game.scenes.top;
+  const before = scene.npcs.map((n) => ({ id: n.id, x: n.x, y: n.y }));
+  for (let i = 0; i < 600; i++) scene.npcs.forEach((n) => n.update(1 / 60, scene.map));
+  const after = scene.npcs.map((n) => ({ x: n.x, y: n.y }));
+  return {
+    count: scene.npcs.length,
+    finite: before.every((n) => Number.isFinite(n.x) && Number.isFinite(n.y)),
+    ids: before.map((n) => n.id),
+    anyMoved: after.some((n, i) => Math.hypot(n.x - before[i].x, n.y - before[i].y) > 4),
+    stillOnMap: after.every((n) => n.x > 0 && n.y > 0
+                              && n.x < scene.map.w * 32 && n.y < scene.map.h * 32),
+  };
+});
+check('all six townsfolk are in the world', townsfolk.count === 6, `got ${townsfolk.count}`);
+check('they spawn at real coordinates', townsfolk.finite, JSON.stringify(townsfolk.ids));
+check('they wander their patch', townsfolk.anyMoved);
+check('they stay inside the map', townsfolk.stillOnMap);
+
+const collide = await page.evaluate(async () => {
+  const scene = window.game.scenes.top;
+  // Walk hard into the treeline at the top of the map and confirm it holds.
+  scene.player.setTile(30, 5);
+  const axis = { x: 0, y: -1, mag: 1 };
+  for (let i = 0; i < 180; i++) scene.player.update(1 / 60, axis, scene.map);
+  return { tileY: scene.player.tileY, solidAbove: scene.map.solidAt(30, 2) };
+});
+check('trees block movement', collide.solidAbove && collide.tileY >= 3,
+      `stopped at tile y=${collide.tileY}`);
+
+const interact = await page.evaluate(async () => {
+  const scene = window.game.scenes.top;
+  const { FARM_ORIGIN } = await import('/js/world/worldMap.js');
+  const { DIR } = await import('/js/world/entities.js');
+
+  // Stand just above plot (3,3) — clear of the plots the later day test uses.
+  scene.player.setTile(FARM_ORIGIN.x + 3, FARM_ORIGIN.y + 2);
+  scene.player.facing = DIR.DOWN;
+  const before = scene._findInteraction();
+  before?.run();
+  const afterTill = scene._findInteraction();
+
+  const plot = window.game.state.farm.plots[3 * window.game.state.farm.width + 3];
+  return { first: before?.label, second: afterTill?.label, tilled: plot.tilled };
+});
+check('walking up to raw ground offers Till', interact.first === 'Till');
+check('tilling works from the world', interact.tilled === true);
+check('the same button then offers to plant', interact.second === 'Turnip');
+
+const doorway = await page.evaluate(async () => {
+  const scene = window.game.scenes.top;
+  const building = scene.map.buildings.find((b) => b.interior === 'seed');
+  scene.player.setTile(building.doorX, building.doorY);
+  const action = scene._findInteraction();
+  action?.run();
+  const inside = { map: scene.map.id, interior: scene.map.interior,
+                   npcs: scene.map.npcs.length };
+
+  // Step onto the doormat, which is how you leave.
+  const exit = scene.map.doors.find((d) => d.to === 'overworld');
+  scene.player.setTile(exit.x, exit.y);
+  const out = scene._findInteraction();
+  const outLabel = out?.label;
+  out?.run();
+  return { inside, outLabel, backOn: scene.map.id };
+});
+check('a shop door leads inside', doorway.inside.map === 'seed' && doorway.inside.interior);
+check('the shopkeeper is behind the counter', doorway.inside.npcs === 1);
+check('standing on the doormat offers to leave', doorway.outLabel === 'Leave');
+check('leaving returns to the overworld', doorway.backOn === 'overworld');
 
 console.log('\nA day on the farm');
 const farmDay = await page.evaluate(async () => {
@@ -186,25 +285,18 @@ check('the ladder advanced to a next phase',
 
 console.log('\nScene navigation');
 const scenes = await page.evaluate(async () => {
-  const out = [];
-  const { TownScene } = await import('/js/town/townScene.js');
   const { MapScene } = await import('/js/map/mapScene.js');
   window.game.state.world.currentAssault = null;   // don't auto-resume into deploy
-
-  window.game.scenes.push(new TownScene(window.game));
-  out.push(window.game.scenes.top.name);
-  window.game.scenes.pop();
+  const out = [];
 
   window.game.scenes.push(new MapScene(window.game));
   out.push(window.game.scenes.top.name);
   window.game.scenes.pop();
-
   out.push(window.game.scenes.top.name);
   return out;
 });
-check('town scene opens', scenes[0] === 'TownScene');
-check('map scene opens', scenes[1] === 'MapScene');
-check('popping returns to the farm', scenes[2] === 'FarmScene');
+check('campaign map opens', scenes[0] === 'MapScene');
+check('popping returns to the world', scenes[1] === 'WorldScene');
 
 // Let a few frames render with all that state in place.
 await page.waitForTimeout(600);

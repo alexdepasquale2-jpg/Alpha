@@ -85,7 +85,7 @@ export class BattleScene extends Scene {
     // The deploy scene owns the tech / victory / defeat panels.
     const below = this.game.scenes.top;
     if (below?.onRoundResolved) below.onRoundResolved();
-    else if (!summary) this.game.scenes.popTo('FarmScene');
+    else if (!summary) this.game.scenes.popTo('WorldScene');
     await this.game.save();
   }
 

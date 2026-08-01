@@ -1,32 +1,47 @@
-// Pointer Events -> tap / drag / long-press, in CSS pixels relative to the
-// canvas. One listener set for the whole game; the active scene asks what
-// happened rather than wiring its own handlers.
+// Pointer Events -> taps, drags, long-presses, and raw multi-touch.
+//
+// The world scene needs a thumbstick and an action button held at the same
+// time, so this tracks every active pointer rather than a single primary one.
+// A scene can *claim* a pointer at press time (via the claim handler); claimed
+// pointers are excluded from tap/drag/long-press so a thumb resting on the
+// stick never registers as a tap on the world behind it.
 
 const TAP_MAX_MS = 320;
-const TAP_SLOP_PX = 12;      // finger wobble that still counts as a tap
+const TAP_SLOP_PX = 12;
 const LONG_PRESS_MS = 480;
 const DRAG_START_PX = 8;
 
 export class Input {
   constructor(canvas) {
     this.canvas = canvas;
-    this.pointer = { x: 0, y: 0, down: false };
 
-    // Consumed by the scene each frame, then cleared.
-    this.tap = null;          // {x, y}
-    this.longPress = null;    // {x, y}
-    this.dragStart = null;    // {x, y}
-    this.dragEnd = null;      // {x, y, startX, startY}
-    this.drag = null;         // {x, y, startX, startY, dx, dy} while dragging
+    /** @type {Map<number, {id,x,y,startX,startY,downAt,claim,moved}>} */
+    this.pointers = new Map();
+
+    // Single-pointer gestures, consumed by scenes each frame.
+    this.pointer = { x: 0, y: 0, down: false };
+    this.tap = null;
+    this.longPress = null;
+    this.dragStart = null;
+    this.dragEnd = null;
+    this.drag = null;
     this.wheel = 0;
 
-    this._downAt = 0;
-    this._downX = 0;
-    this._downY = 0;
-    this._dragging = false;
+    // Keyboard, for desktop play.
+    this.keys = new Set();
+    this.actionPressed = false;
+
+    this._primaryId = null;
     this._longPressTimer = 0;
     this._longPressFired = false;
-    this._activeId = null;
+    this._dragging = false;
+
+    /**
+     * Set by the active scene: given a fresh pointer, return a string tag to
+     * take ownership of it, or null to leave it to the gesture recogniser.
+     * @type {null | ((p:{id:number,x:number,y:number}) => string|null)}
+     */
+    this.claimHandler = null;
 
     this._bind();
   }
@@ -39,8 +54,17 @@ export class Input {
     c.addEventListener('pointerup', (e) => this._onUp(e), opts);
     c.addEventListener('pointercancel', (e) => this._onCancel(e), opts);
     c.addEventListener('wheel', (e) => { e.preventDefault(); this.wheel += e.deltaY; }, opts);
-    // Long-press on mobile otherwise raises the text-selection / context menu.
     c.addEventListener('contextmenu', (e) => e.preventDefault());
+
+    window.addEventListener('keydown', (e) => {
+      this.keys.add(e.key.toLowerCase());
+      if (e.key === ' ' || e.key.toLowerCase() === 'e' || e.key === 'Enter') {
+        this.actionPressed = true;
+        e.preventDefault();
+      }
+    });
+    window.addEventListener('keyup', (e) => this.keys.delete(e.key.toLowerCase()));
+    window.addEventListener('blur', () => this.keys.clear());
   }
 
   _pos(e) {
@@ -49,19 +73,29 @@ export class Input {
   }
 
   _onDown(e) {
-    // Single-pointer game: ignore extra fingers rather than fighting over state.
-    if (this._activeId !== null) return;
     e.preventDefault();
-    this._activeId = e.pointerId;
     this.canvas.setPointerCapture?.(e.pointerId);
-
     const p = this._pos(e);
+
+    const record = {
+      id: e.pointerId,
+      x: p.x, y: p.y,
+      startX: p.x, startY: p.y,
+      downAt: performance.now(),
+      claim: null,
+      moved: false,
+    };
+    record.claim = this.claimHandler?.(record) ?? null;
+    this.pointers.set(e.pointerId, record);
+
+    if (record.claim) return;   // owned by a widget; no gesture recognition
+
+    // First unclaimed pointer becomes the gesture primary.
+    if (this._primaryId !== null) return;
+    this._primaryId = e.pointerId;
     this.pointer.x = p.x;
     this.pointer.y = p.y;
     this.pointer.down = true;
-    this._downAt = performance.now();
-    this._downX = p.x;
-    this._downY = p.y;
     this._dragging = false;
     this._longPressFired = false;
 
@@ -76,35 +110,47 @@ export class Input {
   }
 
   _onMove(e) {
-    if (this._activeId !== null && e.pointerId !== this._activeId) return;
+    const record = this.pointers.get(e.pointerId);
+    if (!record) return;
     e.preventDefault();
     const p = this._pos(e);
+    record.x = p.x;
+    record.y = p.y;
+    if (Math.hypot(p.x - record.startX, p.y - record.startY) > DRAG_START_PX) record.moved = true;
+
+    if (e.pointerId !== this._primaryId) return;
     this.pointer.x = p.x;
     this.pointer.y = p.y;
     if (!this.pointer.down) return;
 
-    const dx = p.x - this._downX;
-    const dy = p.y - this._downY;
+    const dx = p.x - record.startX;
+    const dy = p.y - record.startY;
     if (!this._dragging && Math.hypot(dx, dy) > DRAG_START_PX) {
       this._dragging = true;
       clearTimeout(this._longPressTimer);
-      this.dragStart = { x: this._downX, y: this._downY };
+      this.dragStart = { x: record.startX, y: record.startY };
     }
     if (this._dragging) {
-      this.drag = { x: p.x, y: p.y, startX: this._downX, startY: this._downY, dx, dy };
+      this.drag = { x: p.x, y: p.y, startX: record.startX, startY: record.startY, dx, dy };
     }
   }
 
   _onUp(e) {
-    if (this._activeId !== null && e.pointerId !== this._activeId) return;
+    const record = this.pointers.get(e.pointerId);
+    this.pointers.delete(e.pointerId);
+    this.canvas.releasePointerCapture?.(e.pointerId);
+    if (!record) return;
     e.preventDefault();
+
+    if (e.pointerId !== this._primaryId) return;
+
     clearTimeout(this._longPressTimer);
     const p = this._pos(e);
-    const held = performance.now() - this._downAt;
-    const moved = Math.hypot(p.x - this._downX, p.y - this._downY);
+    const held = performance.now() - record.downAt;
+    const moved = Math.hypot(p.x - record.startX, p.y - record.startY);
 
     if (this._dragging) {
-      this.dragEnd = { x: p.x, y: p.y, startX: this._downX, startY: this._downY };
+      this.dragEnd = { x: p.x, y: p.y, startX: record.startX, startY: record.startY };
     } else if (!this._longPressFired && held <= TAP_MAX_MS && moved <= TAP_SLOP_PX) {
       this.tap = { x: p.x, y: p.y };
     }
@@ -112,20 +158,57 @@ export class Input {
     this.pointer.down = false;
     this.drag = null;
     this._dragging = false;
-    this._activeId = null;
-    this.canvas.releasePointerCapture?.(e.pointerId);
+    this._primaryId = null;
   }
 
   _onCancel(e) {
+    this.pointers.delete(e.pointerId);
+    this.canvas.releasePointerCapture?.(e.pointerId);
+    if (e.pointerId !== this._primaryId) return;
     clearTimeout(this._longPressTimer);
     this.pointer.down = false;
     this.drag = null;
     this._dragging = false;
-    this._activeId = null;
-    this.canvas.releasePointerCapture?.(e.pointerId);
+    this._primaryId = null;
   }
 
-  /** Take the pending tap, if any, clearing it so only one consumer sees it. */
+  /* ---- multi-touch queries ---------------------------------------------- */
+
+  /** Every pointer a widget has taken ownership of under this tag. */
+  claimed(tag) {
+    const out = [];
+    for (const p of this.pointers.values()) if (p.claim === tag) out.push(p);
+    return out;
+  }
+
+  firstClaimed(tag) {
+    for (const p of this.pointers.values()) if (p.claim === tag) return p;
+    return null;
+  }
+
+  /* ---- keyboard ---------------------------------------------------------- */
+
+  /** Movement axis from WASD / arrows, normalised. */
+  keyAxis() {
+    const k = this.keys;
+    let x = 0;
+    let y = 0;
+    if (k.has('a') || k.has('arrowleft')) x -= 1;
+    if (k.has('d') || k.has('arrowright')) x += 1;
+    if (k.has('w') || k.has('arrowup')) y -= 1;
+    if (k.has('s') || k.has('arrowdown')) y += 1;
+    const len = Math.hypot(x, y);
+    return len > 0 ? { x: x / len, y: y / len, mag: 1 } : { x: 0, y: 0, mag: 0 };
+  }
+
+  takeActionKey() {
+    const pressed = this.actionPressed;
+    this.actionPressed = false;
+    return pressed;
+  }
+
+  /* ---- gesture consumption ---------------------------------------------- */
+
   takeTap() {
     const t = this.tap;
     this.tap = null;
@@ -156,12 +239,13 @@ export class Input {
     return w;
   }
 
-  /** Called at frame end: anything a scene ignored is discarded, not queued. */
+  /** Anything a scene ignored this frame is discarded, not queued. */
   endFrame() {
     this.tap = null;
     this.longPress = null;
     this.dragStart = null;
     this.dragEnd = null;
     this.wheel = 0;
+    this.actionPressed = false;
   }
 }
