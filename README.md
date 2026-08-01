@@ -8,6 +8,26 @@ tech tree while resources tick up — online and off.
 **Play it:** open `index.html` in any modern browser. No build step, no server, no
 dependencies, no image or audio files — every pixel and every sound is generated at runtime.
 
+### Running it on a phone or tablet
+
+Opening a `file://` path is awkward on mobile, and some browsers restrict `localStorage`
+on `file://` URLs — which is where the save lives. So on a phone, serve it instead:
+
+```
+python3 serve.py          # then open the URL it prints
+```
+
+`serve.py` is stdlib-only and serves **the folder the script sits in**, not the
+interpreter's working directory. That distinction matters on Android: Pydroid 3, QPython
+and similar apps start scripts inside their own private storage
+(`/data/data/ru.iiec.pydroid3/files/...`), so a bare `python -m http.server` there serves
+that empty folder and reports things like `.../files/web not found`. Keep `serve.py` next
+to `index.html` and it always finds the game; if you move it, it says so instead of
+serving nothing.
+
+It also prints a LAN address, so you can run the server on a laptop and play on a phone
+over the same wifi.
+
 ---
 
 ## Controls
