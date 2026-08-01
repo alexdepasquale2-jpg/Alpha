@@ -18,6 +18,8 @@
     this.popTimer = 0;
     this.geo = null;
     this.clutterSeeds = null;
+    this.rings = [];          // expanding confirmation rings after an action
+    this.hoverAge = 0;        // how long the current tile has been targeted
   });
 
   /* ================================================================ enter */
@@ -78,7 +80,9 @@
     this.listen('objectives', () => self.updateTicker());
     this.updateTicker();
 
-    if (!S.s.buildings.length)
+    // the tutorial's own coach panel covers this exact tip — skip the toast
+    // so it does not sit on top of the rail slot the tutorial is spotlighting
+    if (!S.s.buildings.length && !CM.tutorial.isActive())
       CM.ui.toast('Pick DATA NODE on the left, then tap a tile', 'good');
   };
 
@@ -140,6 +144,8 @@
 
   Base.prototype.updateHint = function () {
     if (!this.hint) return;
+    // the tutorial coach sits in the same spot; give it the room
+    this.hint.style.display = CM.tutorial.isActive() ? 'none' : '';
     if (this.sel) {
       const d = BLD.byId(this.sel), c = BLD.cost(this.sel, 1);
       this.hint.textContent = 'PLACING ' + d.name + '  ·  ' + S.costText(c) + '  ·  TAP A TILE';
@@ -210,6 +216,11 @@
       const p = this.pops[i]; p.life -= dt * 0.75; p.y -= dt * 26;
       if (p.life <= 0) this.pops.splice(i, 1);
     }
+    for (let i = this.rings.length - 1; i >= 0; i--) {
+      this.rings[i].life -= dt * 1.8;
+      if (this.rings[i].life <= 0) this.rings.splice(i, 1);
+    }
+    this.hoverAge += dt;
     this.updateHint();
     this.updateTicker();
   };
@@ -297,19 +308,8 @@
     ctx.closePath(); ctx.stroke();
     ctx.restore();
 
-    /* ---- hover / placement ghost ------------------------------------- */
-    if (this.hover && (this.sel || this.selCrew)) {
-      const p = this.project(this.hover.col, this.hover.row);
-      const occupied = !!S.buildingAt(this.hover.col, this.hover.row);
-      const ok = this.sel ? !occupied : occupied;
-      ctx.save();
-      ctx.strokeStyle = ok ? '#49ff9b' : '#ff4b57';
-      ctx.fillStyle = U.rgba(ok ? '#49ff9b' : '#ff4b57', .16);
-      ctx.lineWidth = 2; ctx.shadowColor = ctx.strokeStyle; ctx.shadowBlur = 14;
-      tilePath(ctx, this, this.hover.col, this.hover.row);
-      ctx.fill(); ctx.stroke();
-      ctx.restore();
-    }
+    /* ---- targeting indicator ----------------------------------------- */
+    this.drawTargeting(ctx);
 
     /* ---- outposts, painted back-to-front ----------------------------- */
     const list = S.s.buildings.slice().sort((a, b) => a.row - b.row);
@@ -342,30 +342,135 @@
     });
   };
 
-  function tilePath(ctx, scene, col, row) {
-    const g = scene.geo;
+  /** The four screen-space corners of a grid tile, in the slab's perspective. */
+  Base.prototype.tileQuad = function (col, row) {
+    const g = this.geo;
     const t0 = row / g.rows, t1 = (row + 1) / g.rows;
     const h0 = U.lerp(g.topHalf, g.botHalf, t0), h1 = U.lerp(g.topHalf, g.botHalf, t1);
     const y0 = U.lerp(g.topY, g.botY, t0), y1 = U.lerp(g.topY, g.botY, t1);
     const u0 = col / g.cols - .5, u1 = (col + 1) / g.cols - .5;
-    ctx.beginPath();
-    ctx.moveTo(g.cx + u0 * 2 * h0, y0); ctx.lineTo(g.cx + u1 * 2 * h0, y0);
-    ctx.lineTo(g.cx + u1 * 2 * h1, y1); ctx.lineTo(g.cx + u0 * 2 * h1, y1);
-    ctx.closePath();
+    return [
+      { x: g.cx + u0 * 2 * h0, y: y0 },
+      { x: g.cx + u1 * 2 * h0, y: y0 },
+      { x: g.cx + u1 * 2 * h1, y: y1 },
+      { x: g.cx + u0 * 2 * h1, y: y1 }
+    ];
+  };
+
+  /**
+   * Which already-placed outposts a build at (col,row) would interact with:
+   * relays buff orthogonal neighbours, so both directions are worth showing
+   * before the player commits credits to a tile.
+   */
+  Base.prototype.linkedTiles = function (col, row, type) {
+    const out = [];
+    const orth = (b) => Math.abs(b.col - col) + Math.abs(b.row - row) === 1;
+    if (type === 'relay') {
+      S.s.buildings.forEach((b) => { if (orth(b)) out.push(b); });
+    } else {
+      S.s.buildings.forEach((b) => { if (b.type === 'relay' && orth(b)) out.push(b); });
+    }
+    return out;
+  };
+
+  /**
+   * The tile reticle. Always on for the targeted tile, colour-coded:
+   *   green  a queued build fits here
+   *   red    the action cannot happen here
+   *   cyan   an existing outpost (tap to inspect)
+   *   grey   idle, nothing queued
+   * When placing, it also ghosts the building and outlines linked relays.
+   */
+  Base.prototype.drawTargeting = function (ctx) {
+    if (!this.hover || !this.geo) { this.drawRings(ctx); return; }
+    const col = this.hover.col, row = this.hover.row;
+    const existing = S.buildingAt(col, row);
+    const placing = !!this.sel, stationing = !!this.selCrew;
+
+    let mode = 'idle', tint = '#9fb0d4';
+    if (placing)         { mode = existing ? 'bad' : 'ok'; }
+    else if (stationing) { mode = existing ? 'ok' : 'bad'; }
+    else if (existing)   { mode = 'info'; }
+    tint = mode === 'ok' ? '#49ff9b' : mode === 'bad' ? '#ff4b57' : mode === 'info' ? '#24e2ff' : '#9fb0d4';
+
+    const quad = this.tileQuad(col, row);
+    const p = this.project(col, row);
+
+    /* linked relays / neighbours, drawn first so the target sits on top */
+    if (placing && mode === 'ok') {
+      this.linkedTiles(col, row, this.sel).forEach((b) => {
+        A.targetQuad(ctx, this.tileQuad(b.col, b.row), '#9a6bff',
+          { t: this.time, fill: 0.08, brackets: false, dash: true });
+      });
+    }
+
+    /* ghost of the building about to be dropped */
+    if (placing && !existing) {
+      ctx.save();
+      ctx.globalAlpha = 0.42 + 0.12 * Math.sin(this.time * 4.2);
+      A.drawBuilding(ctx, p.x, p.y + p.tileW * 0.18, p.tileW * 0.86,
+        BLD.byId(this.sel).color, 1, this.time);
+      ctx.restore();
+    }
+
+    A.targetQuad(ctx, quad, tint, {
+      t: this.time,
+      fill: mode === 'idle' ? 0.06 : 0.13,
+      crosshair: placing || stationing,
+      weight: mode === 'idle' ? 2 : 2.8
+    });
+
+    /* coordinate readout under the reticle */
+    const label = (col + 1) + '-' + (row + 1);
+    A.text(ctx, label, p.x, quad[2].y + 4, Math.max(1, p.tileW / 40),
+      { align: 'center', color: tint, glow: 6, glowColor: tint, shadow: true });
+
+    this.drawRings(ctx);
+  };
+
+  /** Expanding rings spawned when something is actually placed or stationed. */
+  Base.prototype.drawRings = function (ctx) {
+    for (let i = 0; i < this.rings.length; i++) {
+      const r = this.rings[i];
+      const q = this.tileQuad(r.col, r.row);
+      ctx.save();
+      ctx.globalAlpha = r.life;
+      A.targetQuad(ctx, expandQuad(q, 1 + (1 - r.life) * 0.8), r.color,
+        { t: this.time, fill: false, dash: false, weight: 3 });
+      ctx.restore();
+    }
+  };
+  /** Scale a quad about its centre — used for the confirmation ring. */
+  function expandQuad(q, k) {
+    const cx = (q[0].x + q[1].x + q[2].x + q[3].x) / 4;
+    const cy = (q[0].y + q[1].y + q[2].y + q[3].y) / 4;
+    return q.map((p) => ({ x: cx + (p.x - cx) * k, y: cy + (p.y - cy) * k }));
   }
+  /** Kick off a confirmation ring on a tile. */
+  Base.prototype.ping = function (col, row, color) {
+    this.rings.push({ col: col, row: row, color: color || '#49ff9b', life: 1 });
+  };
 
   /* ============================================================== pointer */
   Base.prototype.pointer = function (type, x, y) {
-    if (type === 'move') { this.hover = this.unproject(x, y); return; }
+    if (type === 'move') { this.setHover(this.unproject(x, y)); return; }
     if (type !== 'down') return;
     const cell = this.unproject(x, y);
+    // touch devices never fire hover, so the tap itself acquires the target
+    this.setHover(cell);
     if (!cell) return;
     const existing = S.buildingAt(cell.col, cell.row);
 
     // 1) stationing a crew member
     if (this.selCrew) {
-      if (!existing) { CM.ui.toast('TAP AN OUTPOST TO STATION CREW', 'bad'); CM.audio.play('error'); return; }
-      CM.ui.result(S.stationCrew(this.selCrew, existing.id));
+      if (!existing) {
+        CM.ui.toast('TAP AN OUTPOST TO STATION CREW', 'bad'); CM.audio.play('error');
+        this.ping(cell.col, cell.row, '#ff4b57');
+        return;
+      }
+      const r = S.stationCrew(this.selCrew, existing.id);
+      CM.ui.result(r);
+      if (r.ok) this.ping(cell.col, cell.row, '#ff3fa4');
       this.selCrew = null; this.rebuildRails();
       return;
     }
@@ -373,12 +478,20 @@
     if (this.sel) {
       const r = S.place(this.sel, cell.col, cell.row);
       CM.ui.result(r);
+      this.ping(cell.col, cell.row, r.ok ? BLD.byId(this.sel).color : '#ff4b57');
       if (r.ok && !S.can(BLD.cost(this.sel, 1))) this.sel = null;  // out of cash, drop the brush
       this.rebuildRails();
       return;
     }
     // 3) inspecting an existing outpost
-    if (existing) this.openBuilding(existing);
+    if (existing) { this.ping(cell.col, cell.row, '#24e2ff'); this.openBuilding(existing); }
+  };
+
+  /** Move the reticle, resetting its dwell timer when the tile changes. */
+  Base.prototype.setHover = function (cell) {
+    const same = this.hover && cell && this.hover.col === cell.col && this.hover.row === cell.row;
+    if (!same) this.hoverAge = 0;
+    this.hover = cell;
   };
 
   /* ----------------------------------------------------- building dialog */

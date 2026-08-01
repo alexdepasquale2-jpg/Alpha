@@ -42,6 +42,7 @@ over the same wifi.
 | Auto-merge | **MERGE** button, the chain strip at the top, or the `M` key |
 | Research | **PROGRESSION** → tap a node → **UPGRADE**. Drag to pan, wheel to zoom |
 | Fight | **HIT MISSION** → pick a contract → choose an ability each round |
+| Tutorial | Offered once on a fresh save; restart it any time from MENU → TUTORIAL |
 | Ops board | Tap the objective ticker at the top of the base, or press `O` |
 | Retire (prestige) | MENU → RETIRE CREW, from level 15 |
 | Shortcuts | `1` base · `2` stash · `3` crew · `4` missions · `5` tech · `6` deals · `O` ops board · `m` merge a pair · `M` fuse everything · `Esc` base |
@@ -84,6 +85,21 @@ keeps all eight contracts worth running deep into a run.
 research — with one live objective each. The base screen shows the current one as a
 progress ticker, so there is always an obvious next thing to do; tap it to claim payouts.
 
+**Tutorial.** A short opt-in walkthrough offered once on a new save: a coach panel plus a
+spotlight ring on whatever it wants you to tap next. It never blocks input — the panel is
+click-through except for its own buttons, so you can ignore it and play normally at any
+point. Steps auto-advance when you do the thing (place an outpost, win a fight, open a
+screen) or wait on NEXT for the informational ones; SKIP TUTORIAL bails out entirely.
+Finishing pays a small starter kit. Replayable any time from MENU → TUTORIAL.
+
+**Tile targeting.** The base grid's cursor tile always carries a reticle — dashed border,
+corner brackets, coordinate readout — colour-coded to what you're doing: green when a
+queued build fits the tile, red when it does not, cyan over an existing outpost, grey when
+idle. Placing a GHOST RELAY (or building next to one) also outlines the outposts it would
+link to, and a ghost of the building previews before you commit. Works identically on touch
+— the tap itself acquires the target since touch never fires a hover — and every confirmed
+action leaves a brief expanding ring on the tile.
+
 **Retirement (prestige).** From level 15 you can burn the whole operation for **street
 cred**: `floor((credits earned this run / 250k) ^ 0.55)`. Each point is permanently +4% to
 all income and +2% to loot, damage and toughness. You restart at level 1 with a cash kit,
@@ -113,6 +129,7 @@ js/
     rain.js             layered rain, splashes, distant lightning
     state.js            resources, grid, stash, tech, save/load, offline income, all actions
     ui.js               DOM helpers, persistent HUD, toasts, modals, shared item widgets
+    tutorial.js          optional guided walkthrough: coach panel + spotlight ring
   data/
     items.js            the three merge chains + combat/economy maths
     buildings.js        outpost definitions, costs, yields

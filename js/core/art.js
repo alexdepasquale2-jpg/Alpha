@@ -474,6 +474,77 @@ CM.art = (function () {
     return urlCache.get(key);
   }
 
+  /**
+   * Targeting reticle drawn over an arbitrary quad (the base grid's tiles are
+   * perspective trapezoids, so this takes four points rather than a rect).
+   * Renders a tinted fill, an animated dashed border and four corner brackets.
+   *   opts: { fill, dash, brackets, crosshair, t (seconds, for animation) }
+   */
+  function targetQuad(ctx, q, color, opts) {
+    opts = opts || {};
+    const t = opts.t || 0;
+    const pulse = 0.5 + 0.5 * Math.sin(t * 4.2);
+
+    ctx.save();
+    const trace = () => {
+      ctx.beginPath();
+      ctx.moveTo(q[0].x, q[0].y);
+      for (let i = 1; i < 4; i++) ctx.lineTo(q[i].x, q[i].y);
+      ctx.closePath();
+    };
+
+    if (opts.fill !== false) {
+      trace();
+      ctx.fillStyle = U.rgba(color, (opts.fill || 0.12) + 0.05 * pulse);
+      ctx.fill();
+    }
+
+    if (opts.dash !== false) {
+      trace();
+      ctx.setLineDash([9, 7]);
+      ctx.lineDashOffset = -t * 26;                 // slow crawl around the tile
+      ctx.strokeStyle = U.rgba(color, 0.5);
+      ctx.lineWidth = 1.5;
+      ctx.shadowColor = color; ctx.shadowBlur = 8;
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
+
+    if (opts.brackets !== false) {
+      // Each corner grows two short legs toward its neighbours — the classic
+      // "locked on" bracket, but following the tile's perspective edges.
+      const len = 0.26 + 0.05 * pulse;
+      ctx.strokeStyle = color;
+      ctx.lineWidth = Math.max(2, (opts.weight || 2.6));
+      ctx.lineCap = 'square';
+      ctx.shadowColor = color; ctx.shadowBlur = 12;
+      ctx.beginPath();
+      for (let i = 0; i < 4; i++) {
+        const c = q[i], prev = q[(i + 3) % 4], next = q[(i + 1) % 4];
+        ctx.moveTo(c.x + (next.x - c.x) * len, c.y + (next.y - c.y) * len);
+        ctx.lineTo(c.x, c.y);
+        ctx.lineTo(c.x + (prev.x - c.x) * len, c.y + (prev.y - c.y) * len);
+      }
+      ctx.stroke();
+    }
+
+    if (opts.crosshair) {
+      const cx = (q[0].x + q[1].x + q[2].x + q[3].x) / 4;
+      const cy = (q[0].y + q[1].y + q[2].y + q[3].y) / 4;
+      const r = Math.hypot(q[1].x - q[0].x, q[1].y - q[0].y) * 0.16;
+      ctx.strokeStyle = U.rgba(color, 0.85);
+      ctx.lineWidth = 1.6;
+      ctx.beginPath();
+      ctx.moveTo(cx - r, cy); ctx.lineTo(cx - r * .35, cy);
+      ctx.moveTo(cx + r * .35, cy); ctx.lineTo(cx + r, cy);
+      ctx.moveTo(cx, cy - r * .7); ctx.lineTo(cx, cy - r * .24);
+      ctx.moveTo(cx, cy + r * .24); ctx.lineTo(cx, cy + r * .7);
+      ctx.stroke();
+      ctx.beginPath(); ctx.arc(cx, cy, r * .18, 0, 7); ctx.stroke();
+    }
+    ctx.restore();
+  }
+
   /** Ambient ground clutter (weeds / rubble) for the base grid. */
   function clutter(ctx, x, y, s, seed) {
     const r = U.seeded(seed);
@@ -499,6 +570,6 @@ CM.art = (function () {
 
   return {
     text, textWidth, itemIcon, itemIconURL, drawBuilding, skyline, neonSign,
-    portrait, glyph, glyphURL, clutter, pixelPainter, tcol, invalidate, SIGN_WORDS
+    portrait, glyph, glyphURL, clutter, targetQuad, pixelPainter, tcol, invalidate, SIGN_WORDS
   };
 })();

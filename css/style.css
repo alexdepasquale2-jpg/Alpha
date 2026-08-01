@@ -331,6 +331,50 @@ canvas{ display:block; }
 .log b{ color:var(--cyan); font-weight:normal; }
 .log .dmg{ color:var(--red); } .log .heal{ color:var(--green); } .log .win{ color:var(--gold); }
 
+/* ------------------------------------------------------------- tutorial */
+/* The coach panel sits above the action bar and never swallows input beyond
+   its own buttons — the tutorial guides, it does not trap. */
+.coach{
+  position:fixed; left:50%; transform:translateX(-50%);
+  bottom:calc(var(--bar-h) + 8px); z-index:55;
+  width:min(560px,94vw); padding:10px 14px;
+  display:flex; flex-direction:column; gap:6px;
+  border-color:rgba(73,255,155,.5);
+  box-shadow:0 0 0 1px rgba(0,0,0,.6), 0 0 26px rgba(73,255,155,.22), inset 0 0 22px rgba(73,255,155,.05);
+  animation:sceneIn .22s ease-out both;
+  /* the panel is advice, not a wall: only its own buttons take input, so a
+     tap aimed at whatever is underneath still lands */
+  pointer-events:none;
+  transition:top .2s ease, bottom .2s ease;
+}
+.coach .btn{ pointer-events:auto; }
+/* flipped to the top when the bottom position would cover the step's target */
+.coach.top{ bottom:auto; top:calc(var(--hud-h) + 8px); }
+.coach-head{ display:flex; align-items:baseline; gap:10px; }
+.coach-count{ font-size:9px; letter-spacing:.18em; color:var(--ink-dim); flex:0 0 auto; }
+.coach-title{ font-size:12px; letter-spacing:.18em; color:var(--green);
+  text-shadow:0 0 10px rgba(73,255,155,.6); }
+.coach-text{ font-size:11px; line-height:1.65; color:#c7d6f2; }
+.coach-btns{ display:flex; gap:8px; justify-content:flex-end; }
+.coach.manual .btn.gold{ animation:coachPulse 1.6s ease-in-out infinite; }
+@keyframes coachPulse{ 50%{ box-shadow:0 0 26px rgba(255,176,32,.7) } }
+
+/* spotlight ring around whatever the current step points at */
+.coach-spot{
+  position:fixed; z-index:54; pointer-events:none; border-radius:12px;
+  border:2px solid var(--green);
+  box-shadow:0 0 0 3px rgba(73,255,155,.22), 0 0 26px rgba(73,255,155,.55);
+  transition:left .18s ease, top .18s ease, width .18s ease, height .18s ease;
+  animation:spotPulse 1.4s ease-in-out infinite;
+}
+@keyframes spotPulse{ 50%{ box-shadow:0 0 0 7px rgba(73,255,155,.10), 0 0 34px rgba(73,255,155,.75) } }
+
+@media (max-width:520px){
+  .coach{ padding:8px 10px; gap:4px; }
+  .coach-text{ font-size:10px; line-height:1.55; }
+  .coach-title{ font-size:11px; letter-spacing:.1em; }
+}
+
 /* --------------------------------------------------------------- misc   */
 .center-col{ position:absolute; left:50%; top:50%; transform:translate(-50%,-50%);
   display:flex; flex-direction:column; align-items:center; gap:12px; width:min(520px,92vw); }

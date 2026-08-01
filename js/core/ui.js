@@ -196,6 +196,7 @@ CM.ui = (function () {
         { label: 'OPS BOARD', cls: 'gold', onClick: () => { setTimeout(opsBoard, 60); } },
         { label: 'RETIRE CREW', cls: 'magenta', onClick: () => { setTimeout(retireDialog, 60); } },
         { label: 'SAVE DATA', onClick: () => { setTimeout(saveDialog, 60); } },
+        { label: 'TUTORIAL', cls: 'green', onClick: () => { setTimeout(() => CM.tutorial.start(0), 60); } },
         { label: 'HOW TO PLAY', onClick: () => { setTimeout(help, 60); } },
         { label: 'WIPE SAVE', cls: 'red', onClick: () => { setTimeout(confirmWipe, 60); } },
         { label: 'RESUME', cls: 'ghost' }

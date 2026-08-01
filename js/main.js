@@ -76,6 +76,7 @@ CM.game = (function () {
       if (e.key === 'm') { CM.ui.result(S.autoMerge(null)); }
       if (e.key === 'M') { CM.ui.result(S.fuseAll(null)); }   // shift+M: fuse everything
       if (e.key === 'o' || e.key === 'O') CM.ui.opsBoard();
+      if (e.key === '?') CM.ui.help();
     });
 
     // Persist when backgrounded, and pay out the gap on return: rAF is throttled
@@ -122,6 +123,7 @@ CM.game = (function () {
     }
 
     CM.ui.updateHUD();
+    CM.tutorial.update();
   }
 
   /* =============================================================== boot  */
@@ -156,8 +158,10 @@ CM.game = (function () {
           buttons: [{ label: 'GOOD', cls: 'gold' }]
         });
       }, 500);
-    } else if (S.s.stats.playtime < 5) {
-      setTimeout(CM.ui.help, 700);
+    } else {
+      // Offer the walkthrough once on a fresh save; returning players get
+      // nothing unless they ask for it from the menu.
+      setTimeout(() => { CM.tutorial.offerIfNew(); }, 650);
     }
   }
 

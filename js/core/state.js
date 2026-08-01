@@ -41,6 +41,7 @@ CM.state = (function () {
       legacy: 0,                     // permanent prestige currency (street cred)
       prestiges: 0,
       objectives: { claimed: {} },   // ops-board goals already cashed in
+      tutorial: { step: 0, active: false, done: false, offered: false, rewarded: false },
 
       stats: { merges: 0, builds: 0, missionsWon: 0, missionsLost: 0,
                creditsEarned: 0, playtime: 0, bestTier: 1, opsRun: 0,
@@ -73,6 +74,8 @@ CM.state = (function () {
       S.deals    = Object.assign(blank().deals, d.deals || {});
       S.crafted  = Object.assign(blank().crafted, d.crafted || {});
       S.objectives = Object.assign(blank().objectives, d.objectives || {});
+      S.tutorial = Object.assign(blank().tutorial, d.tutorial || {});
+      S.tutorial.active = false;      // never resume mid-step across a reload
       S.missions.heat = S.missions.heat || {};
       S.inv      = (d.inv || []).filter(Boolean);
       S.buildings = (d.buildings || []).filter(Boolean);
