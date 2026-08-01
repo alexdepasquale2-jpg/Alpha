@@ -324,6 +324,7 @@
       xp:      Math.round(sc * 0.05)
     };
     S.grant(payout);
+    S.s.stats.opsRun++;
     this.map.lastPlay = now;
     // spend the stockpile — the operation consumed it
     RES.forEach((k) => { this.map.res[k] = Math.floor(this.map.res[k] * 0.35); });

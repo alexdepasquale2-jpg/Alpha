@@ -20,6 +20,7 @@
     this.auto = false;
     this.busy = false;
     this.timers = [];
+    this.heatSel = {};      // contractId -> heat level queued for the next run
   });
 
   /* ================================================================ enter */
@@ -57,7 +58,8 @@
 
     M.CONTRACTS.forEach((c) => {
       const locked = !S.missionUnlocked(c);
-      const threat = self.threatOf(c);
+      const heat = self.heatOf(c.id);
+      const threat = self.threatOf(c, heat);
       const odds = rating.score / Math.max(1, threat);
       const oddsTxt = odds > 1.8 ? 'EASY' : odds > 1.1 ? 'FAVOURED' : odds > 0.75 ? 'RISKY' : 'SUICIDE';
       const oddsCol = odds > 1.8 ? '#49ff9b' : odds > 1.1 ? '#a8ff8f' : odds > 0.75 ? '#ffb020' : '#ff4b57';
@@ -85,15 +87,16 @@
           h('div', { text: c.blurb, style: { fontSize: '10px', color: '#5f6d92', lineHeight: '1.5' } }),
           h('div', { style: { display: 'flex', gap: '10px', marginTop: '6px', flexWrap: 'wrap', fontSize: '10px' } }, [
             h('span', { text: '⚡' + c.energy, style: { color: '#24e2ff' } }),
-            h('span', { text: '¢' + U.fmt(c.reward.credits), style: { color: '#ffb020' } }),
-            h('span', { text: '◈' + U.fmt(c.reward.intel), style: { color: '#7fe6ff' } }),
-            h('span', { text: '✦' + U.fmt(c.reward.chips), style: { color: '#ff8fd0' } }),
+            h('span', { text: '¢' + U.fmt(c.reward.credits * S.heatReward(heat)), style: { color: '#ffb020' } }),
+            h('span', { text: '◈' + U.fmt(c.reward.intel * S.heatReward(heat)), style: { color: '#7fe6ff' } }),
+            h('span', { text: '✦' + U.fmt(c.reward.chips * S.heatReward(heat)), style: { color: '#ff8fd0' } }),
             h('span', { text: oddsTxt, style: { color: oddsCol, letterSpacing: '.12em' } })
           ])
         ]),
         h('div', { style: { display: 'flex', flexDirection: 'column', gap: '6px', alignItems: 'flex-end' } }, [
           foeIcons,
-          h('div', { text: 'THREAT ' + U.fmt(threat), style: { fontSize: '10px', color: '#7d8bb0' } })
+          h('div', { text: 'THREAT ' + U.fmt(threat), style: { fontSize: '10px', color: '#7d8bb0' } }),
+          locked ? null : self.heatStepper(c)
         ])
       ]);
       list.appendChild(card);
@@ -120,16 +123,47 @@
     atk = Math.round(atk * m.damage);
     return { hp: hp, atk: atk, score: Math.round(hp * .35 + atk * 2.4), agents: agents, weapon: weapon, vehicle: vehicle };
   };
-  Mission.prototype.threatOf = function (c) {
+  Mission.prototype.threatOf = function (c, heat) {
+    const power = c.power * S.heatPower(heat || 0);
     let hp = 0, atk = 0;
-    c.foes.forEach((fid) => { const f = M.foe(fid); hp += c.power * f.hp; atk += c.power * f.atk * 0.10; });
+    c.foes.forEach((fid) => { const f = M.foe(fid); hp += power * f.hp; atk += power * f.atk * 0.10; });
     return Math.round(hp * .35 + atk * 2.4);
   };
 
+  /* -------------------------------------------------------------- heat -- */
+  /** Currently queued heat for a contract (defaults to the highest cleared). */
+  Mission.prototype.heatOf = function (id) {
+    const v = this.heatSel[id];
+    return v === undefined ? S.heatCleared(id) : U.clamp(v, 0, S.heatAllowed(id));
+  };
+  /** "- HEAT n +" control. Higher heat = tougher enemies, fatter payout. */
+  Mission.prototype.heatStepper = function (c) {
+    const self = this, heat = this.heatOf(c.id), max = S.heatAllowed(c.id);
+    const step = (d) => (e) => {
+      e.stopPropagation();
+      self.heatSel[c.id] = U.clamp(self.heatOf(c.id) + d, 0, max);
+      CM.audio.play('tick');
+      self.buildSelect();
+    };
+    return h('div', {
+      title: 'Heat scales enemies ×' + U.fmt(S.heatPower(heat), 2) + ' and rewards ×' + U.fmt(S.heatReward(heat), 2),
+      style: { display: 'flex', alignItems: 'center', gap: '4px' },
+      onclick: (e) => e.stopPropagation()
+    }, [
+      h('button.btn.sm.ghost', { text: '-', style: { minHeight: '22px', padding: '2px 7px' }, onclick: step(-1) }),
+      h('span', { text: 'HEAT ' + heat,
+        style: { fontSize: '10px', letterSpacing: '.1em', minWidth: '54px', textAlign: 'center',
+                 color: heat ? '#ff7a2f' : '#7d8bb0' } }),
+      h('button.btn.sm' + (heat < max ? '.gold' : '.ghost'),
+        { text: '+', style: { minHeight: '22px', padding: '2px 7px' }, onclick: step(1) })
+    ]);
+  };
+
   /* ============================================================== LAUNCH */
-  Mission.prototype.launch = function (contractId) {
+  Mission.prototype.launch = function (contractId, heatOverride) {
     const c = M.CONTRACTS.find((x) => x.id === contractId);
     if (!c) return;
+    const heat = heatOverride === undefined ? this.heatOf(contractId) : heatOverride;
     if (!S.missionUnlocked(c)) { CM.ui.toast('LOCKED', 'bad'); return; }
     if (S.s.energy < c.energy) { CM.ui.toast('NEED ⚡' + c.energy + ' ENERGY', 'bad'); CM.audio.play('error'); return; }
     const r = this.squadRating();
@@ -155,22 +189,24 @@
         hp: hp, maxHp: hp, atk: Math.round((p.atk + shareATK) * m.damage), alive: true
       };
     });
+    const power = c.power * S.heatPower(heat);
     const foes = c.foes.map((fid, i) => {
       const f = M.foe(fid);
-      const hp = Math.round(c.power * f.hp);
+      const hp = Math.round(power * f.hp);
       return {
-        id: 'e' + i, side: 'e', name: f.name, kind: f.kind, color: f.color, tier: U.clamp(c.tier, 1, 8),
-        hp: hp, maxHp: hp, atk: Math.round(c.power * f.atk * 0.10), alive: true
+        id: 'e' + i, side: 'e', name: f.name + (heat ? ' +' + heat : ''), kind: f.kind, color: f.color,
+        tier: U.clamp(c.tier, 1, 8),
+        hp: hp, maxHp: hp, atk: Math.round(power * f.atk * 0.10), alive: true
       };
     });
 
     this.fight = {
-      c: c, squad: squad, foes: foes, round: 1, cds: {}, over: false,
+      c: c, heat: heat, squad: squad, foes: foes, round: 1, cds: {}, over: false,
       overclock: false, smoke: false, log: []
     };
     this.mode = 'combat';
     this.buildCombat();
-    this.push('<b>' + c.name + '</b> — ' + c.district + '. ' + c.blurb);
+    this.push('<b>' + c.name + '</b> — ' + c.district + (heat ? ' <span class="dmg">[HEAT ' + heat + ']</span>' : '') + '. ' + c.blurb);
     this.push('Squad deployed: ' + squad.map((s) => s.name).join(', ') +
       (r.weapon ? ' · ' + ITEMS.name(r.weapon) : '') + (r.vehicle ? ' · ' + ITEMS.name(r.vehicle) : ''));
   };
@@ -247,7 +283,7 @@
 
   Mission.prototype.refreshCombat = function () {
     const f = this.fight; if (!f) return;
-    this.roundEl.textContent = 'ROUND ' + f.round + '   ·   ' + f.c.name +
+    this.roundEl.textContent = 'ROUND ' + f.round + '   ·   ' + f.c.name + (f.heat ? '  ·  HEAT ' + f.heat : '') +
       (f.overclock ? '   ·   OVERCLOCKED' : '') + (f.smoke ? '   ·   SMOKED' : '');
     [].concat(f.squad, f.foes).forEach((u) => {
       const pct = U.clamp(u.hp / u.maxHp, 0, 1);
@@ -407,18 +443,20 @@
 
     const c = f.c;
     let payout = null;
+    const hr = S.heatReward(f.heat);
     if (won) {
       const m = S.mult();
       const streakBonus = 1 + Math.min(0.5, S.s.missions.streak * 0.05);
       payout = {
-        credits: Math.round(c.reward.credits * m.loot * streakBonus),
-        intel:   Math.round(c.reward.intel   * m.loot * streakBonus),
-        chips:   Math.round(c.reward.chips   * m.chips * streakBonus),
-        xp:      c.reward.xp
+        credits: Math.round(c.reward.credits * m.loot * streakBonus * hr),
+        intel:   Math.round(c.reward.intel   * m.loot * streakBonus * hr),
+        chips:   Math.round(c.reward.chips   * m.chips * streakBonus * hr),
+        xp:      Math.round(c.reward.xp * (1 + f.heat * 0.2))
       };
       CM.audio.play('reward');
     }
-    S.recordMission(c, won, payout);
+    const newRecord = won && f.heat > S.heatCleared(c.id);
+    S.recordMission(c, won, payout, f.heat);
 
     // a clean run can drop a blueprint: a free item near your current tier
     let drop = null;
@@ -435,7 +473,9 @@
       won ? h('p', { html: 'Credits <b>+' + U.fmt(payout.credits) + '</b> · Intel <b>+' + U.fmt(payout.intel) +
                             '</b> · Chips <b>+' + U.fmt(payout.chips) + '</b> · XP <b>+' + payout.xp + '</b>' }) : null,
       won ? h('p', { html: 'Win streak <b>' + S.s.missions.streak + '</b> (+' +
-                            Math.round(Math.min(50, S.s.missions.streak * 5)) + '% loot)' }) : null,
+                            Math.round(Math.min(50, S.s.missions.streak * 5)) + '% loot)' +
+                            (f.heat ? ' · heat ' + f.heat + ' paid <b>×' + U.fmt(hr, 2) + '</b>' : '') }) : null,
+      newRecord ? h('p', { html: '<b style="color:#ff7a2f">HEAT ' + (f.heat + 1) + ' UNLOCKED</b> on this contract.' }) : null,
       drop ? h('p', { html: '<b>BLUEPRINT RECOVERED:</b> ' + ITEMS.name(drop) }) : null
     ]);
 
@@ -445,7 +485,10 @@
       accent: won ? 'gold' : 'magenta',
       bodyEl: body, dismissable: false,
       buttons: [
-        { label: 'RUN AGAIN', cls: 'gold', onClick: () => { self.mode = 'select'; self.buildSelect(); self.after(60, () => self.launch(c.id)); } },
+        { label: 'RUN AGAIN', cls: 'gold', onClick: () => {
+          self.mode = 'select'; self.buildSelect();
+          self.after(60, () => self.launch(c.id, f.heat));
+        } },
         { label: 'CONTRACTS', onClick: () => { self.mode = 'select'; self.busy = false; self.buildSelect(); } },
         { label: 'BASE', cls: 'ghost', onClick: () => CM.game.go('base') }
       ]

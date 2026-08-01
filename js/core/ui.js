@@ -117,6 +117,12 @@ CM.ui = (function () {
     refs.intel   = mkRes('intel', '◈', 'Intel — buys research and outposts');
     refs.chips   = mkRes('chips', '✦', 'Merge chips — refine items');
 
+    refs.legacy = h('div.res.legacy', {
+      title: 'Street cred — permanent bonus from retired crews',
+      style: { display: 'none', borderColor: 'rgba(154,107,255,.5)' }
+    }, [h('div.chip', { text: '\u2605', style: { background: 'radial-gradient(circle at 35% 30%,#d3bcff,#9a6bff)' } }),
+        refs.legacyVal = h('span', { text: '0' })]);
+
     refs.boosts = h('div.res', { style: { display: 'none' } });
 
     const sound = h('button.btn.sm.ghost', {
@@ -132,7 +138,8 @@ CM.ui = (function () {
 
     hudEl.appendChild(port);
     hudEl.appendChild(lvlBox);
-    hudEl.appendChild(h('div.hud-res', null, [refs.credits.el, refs.intel.el, refs.chips.el, refs.boosts]));
+    hudEl.appendChild(h('div.hud-res', null,
+      [refs.credits.el, refs.intel.el, refs.chips.el, refs.legacy, refs.boosts]));
     hudEl.appendChild(h('div.hud-spacer'));
     hudEl.appendChild(sound);
     hudEl.appendChild(menu);
@@ -150,6 +157,9 @@ CM.ui = (function () {
     refs.intel.rate.textContent = inc.intel > 0 ? '+' + U.fmt(inc.intel, 2) + '/s' : '';
     refs.chips.val.textContent = U.fmt(s.chips);
     refs.chips.rate.textContent = inc.chips > 0 ? '+' + U.fmt(inc.chips, 3) + '/s' : '';
+
+    if (s.legacy > 0) { refs.legacy.style.display = ''; refs.legacyVal.textContent = U.fmt(s.legacy); }
+    else refs.legacy.style.display = 'none';
 
     const boosts = S.activeBoosts();
     if (boosts.length) {
@@ -174,12 +184,115 @@ CM.ui = (function () {
       h('p', { html: 'Lifetime credits <b>' + U.fmt(s.stats.creditsEarned) + '</b> · Best tier <b>T' + s.stats.bestTier + '</b>' }),
       h('p', { text: 'Progress saves automatically to this browser and keeps earning while you are away (up to ' + S.OFFLINE_CAP_H + 'h).' })
     ]);
+    if (s.legacy > 0 || s.prestiges > 0) {
+      body.appendChild(h('p', { html: 'Street cred <b style="color:#c3a6ff">' + U.fmt(s.legacy) +
+        '</b> from <b>' + s.prestiges + '</b> retired crew(s) — income ×' +
+        U.fmt(1 + s.legacy * 0.04, 2) + ', combat ×' + U.fmt(1 + s.legacy * 0.02, 2) }));
+    }
+
     modal({
       title: 'CREW TERMINAL', bodyEl: body,
       buttons: [
-        { label: 'HOW TO PLAY', cls: 'gold', onClick: () => { setTimeout(help, 60); } },
+        { label: 'OPS BOARD', cls: 'gold', onClick: () => { setTimeout(opsBoard, 60); } },
+        { label: 'RETIRE CREW', cls: 'magenta', onClick: () => { setTimeout(retireDialog, 60); } },
+        { label: 'SAVE DATA', onClick: () => { setTimeout(saveDialog, 60); } },
+        { label: 'HOW TO PLAY', onClick: () => { setTimeout(help, 60); } },
         { label: 'WIPE SAVE', cls: 'red', onClick: () => { setTimeout(confirmWipe, 60); } },
-        { label: 'RESUME' }
+        { label: 'RESUME', cls: 'ghost' }
+      ]
+    });
+  }
+
+  /* ------------------------------------------------------- ops board --- */
+  /** Full objective list: one live goal per chain plus everything claimed. */
+  function opsBoard() {
+    const live = S.activeObjectives();
+    const box = h('div.list');
+
+    if (!live.length) box.appendChild(h('p', { text: 'Every objective on the board is cleared. Nothing left to prove.' }));
+
+    live.forEach((o) => {
+      const pr = S.objProgress(o);
+      const col = CM.OBJECTIVES.CHAIN_COLOR[o.chain];
+      const bar = h('i', { style: { width: (pr.pct * 100) + '%', background: col, boxShadow: '0 0 10px ' + col } });
+      const btn = h('button.btn.sm' + (pr.done ? '.gold' : '.ghost'), { text: pr.done ? 'CLAIM' : U.fmt(pr.cur) + '/' + U.fmt(pr.goal) });
+      const row = h('div.row-item' + (pr.done ? '.on' : ''), { style: { borderColor: rgbaish(col) } }, [
+        h('div.grow', null, [
+          h('div.nm', { text: o.name, style: { color: col } }),
+          h('div.sub', { text: o.desc }),
+          h('div.meter', { style: { marginTop: '5px' } }, [bar]),
+          h('div.sub', { style: { marginTop: '4px' },
+            text: 'PAYS  ' + S.costText(o.reward) })
+        ]),
+        btn
+      ]);
+      btn.addEventListener('click', () => {
+        if (!pr.done) { toast('NOT FINISHED YET', 'bad'); CM.audio.play('error'); return; }
+        result(S.claimObjective(o.id));
+        opsBoard();
+      });
+      box.appendChild(row);
+    });
+
+    const claimed = CM.OBJECTIVES.LIST.filter((o) => S.objClaimed(o.id)).length;
+    box.appendChild(h('div.tiny', { style: { textAlign: 'center', paddingTop: '6px' },
+      text: claimed + ' / ' + CM.OBJECTIVES.LIST.length + ' OBJECTIVES CLAIMED' }));
+
+    modal({ title: 'OPS BOARD', accent: 'gold', bodyEl: box, buttons: [{ label: 'CLOSE' }] });
+  }
+  const rgbaish = (hex) => CM.util.rgba(hex, .5);
+
+  /* --------------------------------------------------------- prestige --- */
+  function retireDialog() {
+    const s = S.s, gain = S.legacyGain();
+    const ready = S.canRetire();
+    const body = h('div', null, [
+      h('p', { text: 'Retiring burns the whole operation — outposts, stash, tech, level — and buys you street cred that never goes away.' }),
+      h('p', { html: 'Each point of street cred is <b>+4% to all income</b> and <b>+2% to loot, damage and toughness</b>, permanently.' }),
+      h('p', { html: 'This run has earned <b>' + U.fmt(s.stats.creditsEarned) + '¢</b> → retiring now pays <b style="color:#c3a6ff">' +
+        gain + ' street cred</b> (you have ' + U.fmt(s.legacy) + ').' }),
+      h('p', { html: ready ? 'You keep: street cred, lifetime stats, claimed objectives and cleared mission heat. You restart at level 1 with a ' +
+        U.fmt(500 * (s.legacy + gain)) + '¢ retirement kit.'
+        : '<span style="color:#ff4b57">Not yet — you need level ' + S.RETIRE_LEVEL +
+          ' (you are ' + s.level + ') and at least 1 street cred of earnings.</span>' })
+    ]);
+    modal({
+      title: 'RETIRE THE CREW', accent: 'magenta', bodyEl: body,
+      buttons: [
+        ready ? { label: 'RETIRE — +' + gain + ' CRED', cls: 'magenta', onClick: () => {
+          const r = S.retire();
+          result(r);
+          if (r.ok) CM.game.go('base');
+        } } : null,
+        { label: ready ? 'NOT YET' : 'BACK', cls: 'ghost' }
+      ].filter(Boolean)
+    });
+  }
+
+  /* ------------------------------------------------------ save transfer -- */
+  function saveDialog() {
+    const ta = h('textarea', {
+      spellcheck: 'false',
+      style: { width: '100%', height: '130px', background: '#05070f', color: '#9ff0ff',
+               border: '1px solid rgba(36,226,255,.4)', borderRadius: '8px', padding: '8px',
+               fontFamily: 'inherit', fontSize: '10px', wordBreak: 'break-all' }
+    });
+    ta.value = S.exportSave();
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(ta.value).catch(() => {});
+    modal({
+      title: 'SAVE DATA',
+      bodyEl: h('div', null, [
+        h('p', { text: 'Copied to the clipboard where the browser allows it. Paste a save string here and hit IMPORT to load it — this overwrites the current game.' }),
+        ta
+      ]),
+      buttons: [
+        { label: 'IMPORT', cls: 'red', keepOpen: true, onClick: () => {
+          const r = S.importSave(ta.value);
+          result(r);
+          if (r.ok) { const root = document.getElementById('modal-root'); clear(root); root.classList.remove('active'); CM.game.go('base'); }
+          return false;
+        } },
+        { label: 'CLOSE', cls: 'ghost' }
       ]
     });
   }
@@ -233,7 +346,8 @@ CM.ui = (function () {
     ]);
   }
 
-  return { h, clear, actionBtn, toast, result, float, modal, buildHUD, updateHUD, showHUD, openMenu, help, itemCell, itemRow };
+  return { h, clear, actionBtn, toast, result, float, modal, buildHUD, updateHUD, showHUD,
+           openMenu, help, opsBoard, retireDialog, saveDialog, itemCell, itemRow };
 })();
 
 /* toast requests routed through the bus (state.js has no DOM access) */

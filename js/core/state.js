@@ -34,12 +34,17 @@ CM.state = (function () {
 
       boosts: [],                    // {id,label,mult:{},until}
       deals: { offers: [], refreshAt: 0, rerolls: 0 },
-      missions: { done: {}, streak: 0, lastId: null },
+      missions: { done: {}, heat: {}, streak: 0, lastId: null },
 
       strategy: null,                // lazily created by scenes/strategy.js
 
+      legacy: 0,                     // permanent prestige currency (street cred)
+      prestiges: 0,
+      objectives: { claimed: {} },   // ops-board goals already cashed in
+
       stats: { merges: 0, builds: 0, missionsWon: 0, missionsLost: 0,
-               creditsEarned: 0, playtime: 0, bestTier: 1 },
+               creditsEarned: 0, playtime: 0, bestTier: 1, opsRun: 0,
+               lifetimeCredits: 0 }, // lifetimeCredits survives retirement
       settings: { sound: true, rain: true },
       rewardsCounter: 0              // the odometer on the title screen
     };
@@ -67,6 +72,8 @@ CM.state = (function () {
       S.missions = Object.assign(blank().missions, d.missions || {});
       S.deals    = Object.assign(blank().deals, d.deals || {});
       S.crafted  = Object.assign(blank().crafted, d.crafted || {});
+      S.objectives = Object.assign(blank().objectives, d.objectives || {});
+      S.missions.heat = S.missions.heat || {};
       S.inv      = (d.inv || []).filter(Boolean);
       S.buildings = (d.buildings || []).filter(Boolean);
       return offlineReport();
@@ -88,10 +95,15 @@ CM.state = (function () {
     S.squad = [S.inv[S.inv.length - 1].id];
   }
 
-  /** Bank offline income; returns a summary object for the welcome-back modal. */
-  function offlineReport() {
-    const dt = U.clamp((Date.now() - (S.lastSeen || Date.now())) / 1000, 0, OFFLINE_CAP_H * 3600);
-    if (dt < 60) return null;
+  /**
+   * Bank `seconds` of away-time income at the offline rate.
+   * Used both on load (from the save timestamp) and when the tab comes back to
+   * the foreground after being throttled — requestAnimationFrame stops firing
+   * when hidden, so without this a backgrounded tab would earn nothing.
+   */
+  function grantOffline(seconds) {
+    const dt = U.clamp(seconds, 0, OFFLINE_CAP_H * 3600);
+    if (dt < 30) return null;
     const inc = income();
     const got = {
       seconds: dt,
@@ -102,8 +114,15 @@ CM.state = (function () {
     S.credits += got.credits; S.intel += got.intel; S.chips += got.chips;
     S.energy = U.clamp(S.energy + inc.energyRegen * dt, 0, energyMax());
     S.stats.creditsEarned += got.credits;
+    S.stats.lifetimeCredits += got.credits;
     S.rewardsCounter += got.credits;
+    CM.bus.emit('state');
     return got;
+  }
+  /** Offline earnings since the save timestamp; drives the welcome-back modal. */
+  function offlineReport() {
+    const dt = (Date.now() - (S.lastSeen || Date.now())) / 1000;
+    return dt < 60 ? null : grantOffline(dt);
   }
 
   /* =====================================================================
@@ -121,6 +140,12 @@ CM.state = (function () {
       if (b.until && b.until < now) return;
       for (const k in b.mult) m[k] = (m[k] || 1) * b.mult[k];
     });
+    // street cred earned by retiring past crews — permanent, survives everything
+    if (S.legacy > 0) {
+      const econ = 1 + S.legacy * 0.04, war = 1 + S.legacy * 0.02;
+      m.credits *= econ; m.intel *= econ; m.chips *= econ;
+      m.loot *= war; m.damage *= war; m.toughness *= war;
+    }
     return m;
   }
   /** Aggregate additive bonuses from unlocked tech. */
@@ -199,6 +224,7 @@ CM.state = (function () {
     S.chips   += inc.chips * dt;
     S.energy   = U.clamp(S.energy + inc.energyRegen * dt, 0, energyMax());
     S.stats.creditsEarned += gained;
+    S.stats.lifetimeCredits += gained;
     S.stats.playtime += dt;
     S.rewardsCounter += gained;
 
@@ -231,7 +257,11 @@ CM.state = (function () {
     for (const k in g) {
       if (k === 'xp') { addXP(g[k]); continue; }
       S[k] = (S[k] || 0) + g[k];
-      if (k === 'credits') { S.stats.creditsEarned += g[k]; S.rewardsCounter += g[k]; }
+      if (k === 'credits') {
+        S.stats.creditsEarned += g[k];
+        S.stats.lifetimeCredits += g[k];
+        S.rewardsCounter += g[k];
+      }
     }
     if (S.energy > energyMax()) S.energy = energyMax();
     CM.bus.emit('state');
@@ -251,7 +281,7 @@ CM.state = (function () {
   }
   function costText(cost) {
     const ic = { credits: '¢', intel: '◈', chips: '✦', energy: '⚡' };
-    return Object.keys(cost).map((k) => (ic[k] || k) + U.fmt(cost[k])).join('  ');
+    return Object.keys(cost).map((k) => (k === 'xp' ? U.fmt(cost[k]) + 'XP' : (ic[k] || k) + U.fmt(cost[k]))).join('  ');
   }
 
   /* =====================================================================
@@ -317,6 +347,26 @@ CM.state = (function () {
     });
     if (!best) return { ok: false, msg: 'NO MERGEABLE PAIR' };
     return merge(best.a.id, best.b.id);
+  }
+
+  /** Repeatedly fuse the best available pair until nothing else can merge. */
+  function fuseAll(kind) {
+    let n = 0, last = null;
+    for (let i = 0; i < 400; i++) {
+      const r = autoMerge(kind);
+      if (!r.ok) break;
+      n++; last = r.item;
+    }
+    if (!n) return { ok: false, msg: 'NOTHING LEFT TO FUSE' };
+    return { ok: true, count: n, item: last, msg: 'FUSED ' + n + ' TIME' + (n > 1 ? 'S' : '') + ' → ' + ITEMS.name(last) };
+  }
+
+  /** Tidy the stash: group by chain, strongest first. */
+  function sortInv() {
+    const order = { vehicle: 0, weapon: 1, agent: 2 };
+    S.inv.sort((a, b) => (order[a.kind] - order[b.kind]) || (b.tier - a.tier) || ((b.plus || 0) - (a.plus || 0)));
+    CM.bus.emit('inv');
+    return { ok: true, msg: 'STASH SORTED' };
   }
 
   function refine(id) {
@@ -468,11 +518,26 @@ CM.state = (function () {
    *  MISSIONS
    * =================================================================== */
   function missionUnlocked(m) { return S.level >= m.lvl; }
-  function recordMission(m, won, payout) {
+
+  /* HEAT — every contract can be re-run at a higher heat level. Enemies scale
+     faster than rewards do, so heat is a skill/tier check rather than free
+     money, and it keeps the eight contracts relevant deep into the game.    */
+  const HEAT_MAX = 20;
+  const heatPower  = (heat) => Math.pow(1.34, heat || 0);
+  const heatReward = (heat) => Math.pow(1.30, heat || 0);
+  /** Highest heat already cleared on this contract. */
+  const heatCleared = (id) => S.missions.heat[id] || 0;
+  /** Highest heat the player is allowed to attempt (one step past cleared). */
+  const heatAllowed = (id) => Math.min(HEAT_MAX, heatCleared(id) + 1);
+  const bestHeat = () => Math.max.apply(null, [0].concat(Object.keys(S.missions.heat).map((k) => S.missions.heat[k])));
+
+  function recordMission(m, won, payout, heat) {
+    heat = heat || 0;
     if (won) {
       S.stats.missionsWon++;
       S.missions.streak++;
       S.missions.done[m.id] = (S.missions.done[m.id] || 0) + 1;
+      if (heat > heatCleared(m.id)) S.missions.heat[m.id] = heat;
       grant(payout);
     } else {
       S.stats.missionsLost++;
@@ -483,6 +548,126 @@ CM.state = (function () {
     CM.bus.emit('state');
   }
 
+  /* =====================================================================
+   *  OBJECTIVES  (the ops board)
+   * =================================================================== */
+  /** Resolve the named progress counter an objective watches. */
+  function statValue(stat) {
+    switch (stat) {
+      case 'buildings':     return S.buildings.length;
+      case 'maxBuildLevel': return S.buildings.reduce((a, b) => Math.max(a, b.level), 0);
+      case 'stationed':     return S.buildings.filter((b) => b.crew).length;
+      case 'merges':        return S.stats.merges;
+      case 'bestTier':      return S.inv.reduce((a, i) => Math.max(a, i.tier), 0);
+      case 'missionsWon':   return S.stats.missionsWon;
+      case 'maxHeat':       return bestHeat();
+      case 'techNodes':     return Object.keys(S.tech).filter((k) => S.tech[k]).length;
+      case 'level':         return S.level;
+      case 'prestiges':     return S.prestiges;
+      case 'opsRun':        return S.stats.opsRun;
+      default:              return 0;
+    }
+  }
+  const objClaimed = (id) => !!S.objectives.claimed[id];
+  const objDone    = (o) => statValue(o.stat) >= o.n;
+  /** Progress record for one objective. */
+  function objProgress(o) {
+    const cur = statValue(o.stat);
+    return { cur: cur, goal: o.n, pct: U.clamp(cur / o.n, 0, 1), done: cur >= o.n, claimed: objClaimed(o.id) };
+  }
+  /** The live objective of each chain: first unclaimed one, in list order. */
+  function activeObjectives() {
+    const seen = {}, out = [];
+    CM.OBJECTIVES.LIST.forEach((o) => {
+      if (seen[o.chain] || objClaimed(o.id)) return;
+      seen[o.chain] = true; out.push(o);
+    });
+    return out;
+  }
+  /**
+   * The single objective to surface in the base ticker: anything claimable
+   * first, otherwise the earliest chain still in progress. Chain order doubles
+   * as the tutorial order (build -> merge -> crew -> hit -> research).
+   */
+  function focusObjective() {
+    const live = activeObjectives();
+    const ready = live.filter((o) => objDone(o));
+    if (ready.length) return ready[0];
+    const order = CM.OBJECTIVES.CHAINS;
+    return live.slice().sort((a, b) => order.indexOf(a.chain) - order.indexOf(b.chain))[0] || null;
+  }
+  function claimObjective(id) {
+    const o = CM.OBJECTIVES.byId(id);
+    if (!o) return { ok: false, msg: 'UNKNOWN OBJECTIVE' };
+    if (objClaimed(id)) return { ok: false, msg: 'ALREADY CLAIMED' };
+    if (!objDone(o)) return { ok: false, msg: 'NOT FINISHED YET' };
+    S.objectives.claimed[id] = true;
+    grant(o.reward);
+    save();
+    CM.audio.play('reward');
+    CM.bus.emit('objectives');
+    return { ok: true, msg: o.name + ' — ' + costText(o.reward) + ' PAID' };
+  }
+
+  /* =====================================================================
+   *  PRESTIGE  ("retire the crew")
+   * =================================================================== */
+  const RETIRE_LEVEL = 15;
+  /** Street cred a retirement would pay out right now, from THIS run's earnings. */
+  function legacyGain() {
+    const earned = Math.max(0, S.stats.creditsEarned);   // reset to 0 by retire()
+    return Math.floor(Math.pow(earned / 250000, 0.55));
+  }
+  const canRetire = () => S.level >= RETIRE_LEVEL && legacyGain() > 0;
+  /**
+   * Wipe the run but keep street cred, stats, settings and cleared heat.
+   * Every legacy point is +4% income and +2% loot/damage/toughness forever.
+   */
+  function retire() {
+    if (!canRetire()) return { ok: false, msg: 'NOT READY TO RETIRE (LVL ' + RETIRE_LEVEL + '+)' };
+    const gain = legacyGain();
+    const keep = {
+      legacy: S.legacy + gain,
+      prestiges: S.prestiges + 1,
+      stats: S.stats,
+      settings: S.settings,
+      objectives: S.objectives,
+      missions: { done: {}, heat: S.missions.heat, streak: 0, lastId: null },
+      rewardsCounter: S.rewardsCounter,
+      created: S.created
+    };
+    S = Object.assign(blank(), keep);
+    S.stats.creditsEarned = 0;          // the multiplier is earned again each run
+    grantStarterKit();
+    // a retirement kit so the next run does not start from literally nothing
+    S.credits = 500 * S.legacy;
+    save();
+    CM.bus.emit('state'); CM.bus.emit('inv'); CM.bus.emit('tech'); CM.bus.emit('objectives');
+    return { ok: true, gain: gain, msg: 'RETIRED — +' + gain + ' STREET CRED' };
+  }
+
+  /* =====================================================================
+   *  SAVE TRANSFER
+   * =================================================================== */
+  /** Base64 of the raw save, safe to paste around. */
+  function exportSave() {
+    try { return btoa(unescape(encodeURIComponent(JSON.stringify(S)))); }
+    catch (e) { return ''; }
+  }
+  function importSave(txt) {
+    try {
+      const json = decodeURIComponent(escape(atob(String(txt).trim())));
+      const d = JSON.parse(json);
+      if (!d || typeof d !== 'object' || !d.stats) throw new Error('not a save');
+      localStorage.setItem(SAVE_KEY, JSON.stringify(d));
+      load();
+      CM.bus.emit('state'); CM.bus.emit('inv'); CM.bus.emit('tech'); CM.bus.emit('objectives');
+      return { ok: true, msg: 'SAVE IMPORTED' };
+    } catch (e) {
+      return { ok: false, msg: 'THAT IS NOT A VALID SAVE STRING' };
+    }
+  }
+
   /* ------------------------------------------------------------ exports */
   return {
     SAVE_KEY, GRID_COLS, GRID_ROWS, OFFLINE_CAP_H,
@@ -491,11 +676,15 @@ CM.state = (function () {
     mult, adds, income, energyMax, xpNeeded, hasUnlock, tierCap,
     invSlots, squadSlots, dealSlots, buildingBonus,
     can, pay, grant, addXP, costText,
-    itemById, invCount, addItem, craft, merge, autoMerge, refine, scrap,
+    itemById, invCount, addItem, craft, merge, autoMerge, fuseAll, sortInv, refine, scrap,
     unassign, stationCrew, toggleSquad, squadItems, bestOf,
     buildingAt, place, upgrade, demolish,
     techAvailable, research,
     addBoost, activeBoosts,
-    missionUnlocked, recordMission
+    missionUnlocked, recordMission, grantOffline,
+    HEAT_MAX, heatPower, heatReward, heatCleared, heatAllowed, bestHeat,
+    statValue, objClaimed, objDone, objProgress, activeObjectives, focusObjective, claimObjective,
+    RETIRE_LEVEL, legacyGain, canRetire, retire,
+    exportSave, importSave
   };
 })();

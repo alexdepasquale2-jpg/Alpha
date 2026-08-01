@@ -73,11 +73,25 @@ CM.game = (function () {
       const map = { '1': 'base', '2': 'merge', '3': 'crew', '4': 'mission', '5': 'tech', '6': 'deals' };
       if (map[e.key]) go(map[e.key]);
       if (e.key === 'Escape') go('base');
-      if (e.key === 'm' || e.key === 'M') { const r = S.autoMerge(null); CM.ui.result(r); }
+      if (e.key === 'm') { CM.ui.result(S.autoMerge(null)); }
+      if (e.key === 'M') { CM.ui.result(S.fuseAll(null)); }   // shift+M: fuse everything
+      if (e.key === 'o' || e.key === 'O') CM.ui.opsBoard();
     });
 
-    // persist whenever the tab is backgrounded or closed
-    document.addEventListener('visibilitychange', () => { if (document.hidden) S.save(); });
+    // Persist when backgrounded, and pay out the gap on return: rAF is throttled
+    // (often stopped outright) while hidden, so the main tick earns nothing there.
+    let hiddenAt = 0;
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden) { hiddenAt = Date.now(); S.save(); return; }
+      if (!hiddenAt) return;
+      const away = (Date.now() - hiddenAt) / 1000;
+      hiddenAt = 0;
+      game.last = performance.now();          // stop a huge dt on the next frame
+      const got = S.grantOffline(away);
+      if (got && got.credits > 1) {
+        CM.ui.toast('WELCOME BACK — +' + U.fmt(got.credits) + '¢ while away', 'gold');
+      }
+    });
     window.addEventListener('beforeunload', () => S.save());
     window.addEventListener('pagehide', () => S.save());
   }

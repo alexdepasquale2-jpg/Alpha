@@ -45,6 +45,22 @@
       bar.appendChild(CM.ui.actionBtn('OPS MAP', 'STRATEGY', '', () => CM.game.go('strategy')));
     this.add(bar);
 
+    /* ------------------------------------------- objective ticker -------
+       One live goal, top-centre, tappable to open the full ops board. This is
+       the game's sense of direction — without it a new player has no idea
+       whether to build, merge or fight next.                              */
+    this.ticker = h('div.panel', {
+      style: { position: 'absolute', left: '50%', transform: 'translateX(-50%)',
+               top: 'calc(var(--hud-h) + 4px)', padding: '5px 12px', minWidth: 'min(300px,86vw)',
+               maxWidth: '92vw', cursor: 'inherit', display: 'flex', flexDirection: 'column', gap: '4px' },
+      onclick: () => { CM.audio.play('click'); CM.ui.opsBoard(); }
+    }, [
+      this.tickerText = h('div', { style: { fontSize: '10px', letterSpacing: '.12em',
+        whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' } }),
+      h('div.meter', { style: { height: '5px' } }, [this.tickerBar = h('i')])
+    ]);
+    this.add(this.ticker);
+
     /* ------------------------------------------------ hint / selection  */
     this.hint = h('div', {
       style: { position: 'absolute', left: '50%', transform: 'translateX(-50%)',
@@ -59,6 +75,8 @@
     this.listen('state', () => self.rebuildRails());
     this.listen('inv', () => self.rebuildRails());
     this.listen('tech', () => { self.rebuildRails(); });
+    this.listen('objectives', () => self.updateTicker());
+    this.updateTicker();
 
     if (!S.s.buildings.length)
       CM.ui.toast('Pick DATA NODE on the left, then tap a tile', 'good');
@@ -193,6 +211,28 @@
       if (p.life <= 0) this.pops.splice(i, 1);
     }
     this.updateHint();
+    this.updateTicker();
+  };
+
+  /** Keep the top-centre objective chip in sync with the live goal. */
+  Base.prototype.updateTicker = function () {
+    if (!this.ticker) return;
+    const o = S.focusObjective();
+    if (!o) {
+      this.tickerText.textContent = 'OPS BOARD CLEARED — TAP FOR STATS';
+      this.tickerBar.style.width = '100%';
+      this.tickerBar.style.background = '#49ff9b';
+      return;
+    }
+    const pr = S.objProgress(o);
+    const col = CM.OBJECTIVES.CHAIN_COLOR[o.chain];
+    this.ticker.style.borderColor = U.rgba(col, pr.done ? .95 : .45);
+    this.tickerText.innerHTML = (pr.done ? '<b style="color:#ffb020">CLAIM</b>  ' : '') +
+      '<span style="color:' + col + '">' + o.name + '</span>  ·  ' + o.desc +
+      '  <span style="opacity:.6">' + U.fmt(pr.cur) + '/' + U.fmt(pr.goal) + '</span>';
+    this.tickerBar.style.width = (pr.pct * 100) + '%';
+    this.tickerBar.style.background = pr.done ? '#ffb020' : col;
+    this.tickerBar.style.boxShadow = '0 0 8px ' + col;
   };
 
   /* =============================================================== render */

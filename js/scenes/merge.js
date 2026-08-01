@@ -13,6 +13,7 @@
     CM.Scene.call(this, 'merge');
     this.sel = null;      // selected item id
     this.drag = null;     // {id, ghost, fromEl, moved}
+    this.filter = null;   // null = show everything, else a chain kind
   });
 
   /* ================================================================ enter */
@@ -30,6 +31,13 @@
                fontSize: '10px', letterSpacing: '.12em', color: '#7d8bb0', paddingTop: '26px' }
     });
     wrap.appendChild(this.header);
+
+    /* ---- toolbar: chain filter + sort + fuse-everything ---------------- */
+    this.toolbar = h('div', {
+      style: { display: 'flex', justifyContent: 'center', gap: '6px', flexWrap: 'wrap', padding: '2px' }
+    });
+    wrap.appendChild(this.toolbar);
+    this.rebuildToolbar();
 
     /* ---- merge-chain progress strip ----------------------------------- */
     this.recipes = h('div.recipes');
@@ -76,6 +84,26 @@
     this.killGhost();
   };
 
+  /** Filter chips + stash tools. Rebuilt whenever the filter changes. */
+  Merge.prototype.rebuildToolbar = function () {
+    const self = this;
+    CM.ui.clear(this.toolbar);
+    const chip = (label, kind) => h('button.btn.sm' + (self.filter === kind ? '.gold' : '.ghost'), {
+      text: label,
+      onclick: () => { CM.audio.play('click'); self.filter = kind; self.rebuildToolbar(); self.rebuild(); }
+    });
+    this.toolbar.appendChild(chip('ALL', null));
+    ITEMS.KINDS.forEach((k) => this.toolbar.appendChild(chip(ITEMS.CHAINS[k].label, k)));
+    this.toolbar.appendChild(h('button.btn.sm', {
+      text: 'SORT', title: 'Group the stash by chain, strongest first',
+      onclick: () => { CM.audio.play('click'); CM.ui.result(S.sortInv()); self.rebuild(); }
+    }));
+    this.toolbar.appendChild(h('button.btn.sm.green', {
+      text: 'FUSE ALL', title: 'Merge every available pair, repeatedly',
+      onclick: () => { CM.ui.result(S.fuseAll(self.filter)); self.rebuild(); }
+    }));
+  };
+
   /* =============================================================== render */
   Merge.prototype.rebuild = function () {
     const self = this;
@@ -88,14 +116,16 @@
 
     CM.ui.clear(this.grid);
     const selItem = this.sel ? S.itemById(this.sel) : null;
+    const shown = this.filter ? inv.filter((i) => i.kind === this.filter) : inv;
 
-    inv.forEach((it, i) => {
+    shown.forEach((it, i) => {
       const cell = CM.ui.itemCell(it, { index: i });
       if (this.sel === it.id) cell.classList.add('sel');
       else if (selItem && selItem.kind === it.kind && selItem.tier === it.tier) cell.classList.add('match');
       this.grid.appendChild(cell);
     });
-    for (let i = inv.length; i < slots; i++) this.grid.appendChild(h('div.cell.empty'));
+    // free slots are only meaningful on the unfiltered board
+    if (!this.filter) for (let i = inv.length; i < slots; i++) this.grid.appendChild(h('div.cell.empty'));
 
     this.refreshHeader();
     this.refreshRecipes();
