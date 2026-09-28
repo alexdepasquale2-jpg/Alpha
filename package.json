@@ -1,17 +1,16 @@
 {
-  "name": "ironfield",
+  "name": "loopwright",
   "version": "1.0.0",
   "private": true,
-  "description": "A mobile browser game: farm by day, command auto-battling mechs by dusk. Mechabellum meets Harvest Moon.",
+  "description": "Loopwright, the crochet studio: plan, create, post, share, build, imagine.",
   "type": "module",
   "scripts": {
     "start": "python3 server.py",
-    "test": "node tests/sim.test.mjs",
-    "test:matrix": "node tests/sim.test.mjs --matrix",
-    "test:browser": "PLAYWRIGHT_BROWSERS_PATH=/opt/pw-browsers node tests/smoke.test.mjs",
-    "test:all": "npm run test && npm run test:browser"
+    "test": "node --test tests/logic.test.mjs && python3 -m unittest discover -s tests -p 'test_*.py'",
+    "test:browser": "node tests/smoke.test.mjs",
+    "test:all": "npm test && npm run test:browser"
   },
   "devDependencies": {
-    "playwright": "^1.62.1"
+    "playwright": "1.56.1"
   }
 }

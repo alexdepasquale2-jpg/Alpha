@@ -1,24 +1,26 @@
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-<meta name="theme-color" content="#1b2416">
-<meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="description" content="Ironfield — farm by day, command mechs by dusk.">
-<title>Ironfield</title>
-<link rel="icon" href="/icon.svg" type="image/svg+xml">
-<link rel="apple-touch-icon" href="/icon.svg">
-<link rel="manifest" href="/manifest.webmanifest">
-<link rel="stylesheet" href="/css/style.css">
-
-<div id="app">
-  <canvas id="stage"></canvas>
-  <div id="overlay" aria-live="polite"></div>
-  <div id="boot">
-    <div class="boot-mark">IRONFIELD</div>
-    <div class="boot-sub">loading&hellip;</div>
-  </div>
-  <noscript class="boot-error">Ironfield needs JavaScript enabled.</noscript>
-</div>
-
-<script type="module" src="/js/main.js"></script>
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Loopwright — the crochet studio</title>
+  <meta name="description" content="Plan, create, post, share, build and imagine: a complete studio for people who crochet.">
+  <meta name="theme-color" content="#faf6f0" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#161210" media="(prefers-color-scheme: dark)">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Loopwright">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icon.svg">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="stylesheet" href="css/app.css">
+  <script type="module" src="js/main.js"></script>
+</head>
+<body>
+  <div id="app" aria-busy="true"></div>
+  <div id="print-root"></div>
+  <noscript>
+    <p style="padding:24px;font-family:system-ui">Loopwright needs JavaScript to run.</p>
+  </noscript>
+</body>
+</html>

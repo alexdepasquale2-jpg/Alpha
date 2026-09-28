@@ -1,19 +1,19 @@
 {
-  "name": "Ironfield",
-  "short_name": "Ironfield",
-  "description": "Farm by day, command mechs by dusk.",
-  "start_url": "/",
-  "scope": "/",
-  "display": "fullscreen",
-  "orientation": "portrait",
-  "background_color": "#12180f",
-  "theme_color": "#1b2416",
+  "name": "Loopwright — the crochet studio",
+  "short_name": "Loopwright",
+  "description": "Plan, create, post, share, build and imagine: a complete studio for people who crochet.",
+  "start_url": "./#/",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#faf6f0",
+  "theme_color": "#b4481f",
   "icons": [
-    {
-      "src": "/icon.svg",
-      "sizes": "any",
-      "type": "image/svg+xml",
-      "purpose": "any maskable"
-    }
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ],
+  "shortcuts": [
+    { "name": "Keep working", "url": "./#/build" },
+    { "name": "New pattern", "url": "./#/create/patterns/new" },
+    { "name": "Stash", "url": "./#/plan/stash" }
   ]
 }

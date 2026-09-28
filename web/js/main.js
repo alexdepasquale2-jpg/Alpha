@@ -1,157 +1,132 @@
-// Bootstrap: canvas sizing, the scene stack, the loop, and the boot save load.
+// Boot: app shell, navigation, routing, theme, offline.
 
-import { Loop } from './core/loop.js';
-import { Input } from './core/input.js';
-import { SceneStack } from './core/scene.js';
-import { emit, on, EVENTS } from './core/events.js';
-import * as saves from './core/save.js';
-import { getState, setState, createNewGame } from './core/state.js';
-import { initToasts, toast } from './ui/toast.js';
-import { COLORS } from './ui/theme.js';
-import { TitleScene } from './scenes/title.js';
-import { WorldScene } from './world/worldScene.js';
+import { h, mount, toast } from './core/dom.js';
+import { brandMark } from './core/brand.js';
+import { applyTheme } from './core/theme.js';
+import { icon } from './core/icons.js';
+import { parseHash, onRoute } from './core/router.js';
+import * as store from './core/store.js';
+import { online } from './core/api.js';
+import { seedIfFirstRun } from './views/seed.js';
 
-export const AUTOSAVE_SLOT = 'auto';
+export const SECTIONS = [
+  { id: 'plan', label: 'Plan', ico: 'plan', sub: 'Projects, stash, calculators' },
+  { id: 'create', label: 'Create', ico: 'create', sub: 'Patterns, charts, shapes' },
+  { id: 'post', label: 'Post', ico: 'post', sub: 'Community and journal' },
+  { id: 'share', label: 'Share', ico: 'share', sub: 'Links, QR, print, backup' },
+  { id: 'build', label: 'Build', ico: 'build', sub: 'Row tracker and counters' },
+  { id: 'imagine', label: 'Imagine', ico: 'imagine', sub: 'Palettes and generators' },
+];
 
-class Game {
-  constructor() {
-    this.canvas = document.getElementById('stage');
-    this.ctx = this.canvas.getContext('2d', { alpha: false });
-    this.input = new Input(this.canvas);
-    this.scenes = new SceneStack(this);
-    this.view = { w: 0, h: 0, dpr: 1, safeTop: 0, safeBottom: 0, safeLeft: 0, safeRight: 0 };
-    this.loop = new Loop((dt, tick) => this.update(dt, tick), (alpha) => this.render(alpha));
-    this._resize = this._resize.bind(this);
-  }
+const VIEWS = {
+  home: () => import('./views/home.js'),
+  plan: () => import('./views/plan.js'),
+  create: () => import('./views/create.js'),
+  post: () => import('./views/post.js'),
+  share: () => import('./views/share.js'),
+  s: () => import('./views/share.js'),
+  import: () => import('./views/share.js'),
+  build: () => import('./views/build.js'),
+  imagine: () => import('./views/imagine.js'),
+  settings: () => import('./views/settings.js'),
+};
 
-  get state() { return getState(); }
+let current = { cleanup: null, token: 0 };
+const viewEl = h('div#view');
 
-  async boot() {
-    initToasts();
-    this._wireSeasonRollover();
-    this._resize();
-    window.addEventListener('resize', this._resize);
-    window.visualViewport?.addEventListener('resize', this._resize);
-    window.addEventListener('orientationchange', () => setTimeout(this._resize, 120));
-
-    // Escape / Android back maps to the scene stack.
-    window.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape') { e.preventDefault(); this.scenes.back(); }
-    });
-
-    // Best-effort save when the player swipes the tab away. `visibilitychange`
-    // is the only event mobile browsers reliably deliver before killing a page.
-    document.addEventListener('visibilitychange', () => {
-      if (document.hidden && this.state && !this.state.world.currentAssault) {
-        this.save().catch(() => {});
-      }
-    });
-
-    // Widgets that need a dedicated finger (the thumbstick, the action
-    // button) take ownership of a pointer at press time. Delegating to the top
-    // scene keeps that decision where the widgets are.
-    this.input.claimHandler = (pointer) => this.scenes.top?.claimPointer?.(pointer) ?? null;
-
-    this.scenes.replace(new TitleScene(this));
-    this.loop.start();
-
-    document.getElementById('boot')?.classList.add('hidden');
-    setTimeout(() => document.getElementById('boot')?.remove(), 500);
-  }
-
-  /**
-   * The army retires at the end of every season. Wired once at boot rather
-   * than inside the farm scene, so it fires no matter where the day rolled
-   * over from.
-   */
-  _wireSeasonRollover() {
-    on(EVENTS.SEASON_CHANGED, async ({ season, year }) => {
-      const { retireArmy } = await import('./battle/assault.js');
-      const { SEASONS } = await import('./core/state.js');
-      const retired = retireArmy();
-      if (retired) {
-        const models = retired.squads.reduce((sum, s) => sum + s.count, 0);
-        toast(`${SEASONS[season]} Y${year}. ${models} veteran(s) stood down.`, 'gold', 4000);
-      }
-    });
-  }
-
-  /** Start a brand-new run and hand control to the farm. */
-  async newGame(opts = {}) {
-    setState(createNewGame(opts));
-    const { initNewRun } = await import('./farm/farmSim.js');
-    initNewRun(this.state);
-    this.scenes.replace(new WorldScene(this));
-    await this.save();
-  }
-
-  /** Resume the autosave. Returns false if there was nothing to resume. */
-  async continueGame(slot = AUTOSAVE_SLOT) {
-    const loaded = await saves.load(slot);
-    if (!loaded) return false;
-    this.scenes.replace(new WorldScene(this));
-    return true;
-  }
-
-  async save(slot = AUTOSAVE_SLOT) {
-    if (!this.state) return { ok: false };
-    return saves.save(this.state, slot);
-  }
-
-  _resize() {
-    const dpr = Math.min(window.devicePixelRatio || 1, 3);
-    const w = Math.round(this.canvas.clientWidth || window.innerWidth);
-    const h = Math.round(this.canvas.clientHeight || window.innerHeight);
-
-    this.canvas.width = Math.round(w * dpr);
-    this.canvas.height = Math.round(h * dpr);
-    this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    this.ctx.imageSmoothingEnabled = true;
-
-    const probe = getComputedStyle(document.documentElement);
-    const px = (name) => parseFloat(probe.getPropertyValue(name)) || 0;
-
-    Object.assign(this.view, {
-      w, h, dpr,
-      safeTop: px('--safe-top'),
-      safeBottom: px('--safe-bottom'),
-      safeLeft: px('--safe-left'),
-      safeRight: px('--safe-right'),
-      // Portrait is the design target; landscape still plays, just letterboxed
-      // by the scenes that care.
-      portrait: h >= w,
-      short: h < 620,
-    });
-
-    this.scenes.stack.forEach((scene) => scene.onResize?.(this.view));
-  }
-
-  update(dt, tick) {
-    this.scenes.handleInput(this.input);
-    this.scenes.update(dt, tick);
-    this.input.endFrame();
-    if (this.state) this.state.meta.playtimeMs += dt * 1000;
-  }
-
-  render(alpha) {
-    const { ctx, view } = this;
-    ctx.fillStyle = COLORS.bg;
-    ctx.fillRect(0, 0, view.w, view.h);
-    this.scenes.render(ctx, view, alpha);
-  }
+function buildShell() {
+  const navLinks = (cls) => SECTIONS.map((s) => h('a', { href: `#/${s.id}`, dataset: { section: s.id }, class: cls },
+    icon(s.ico), cls === 'side' ? h('span', s.label, h('span.nav-sub', s.sub)) : h('span', s.label)));
+  const presence = h('div.presence', h('span.dot'), h('span.presence-text', 'Checking for community…'));
+  const sidebar = h('aside.sidebar',
+    h('a.brand', { href: '#/' }, brandMark(), h('span', h('span.brand-name', 'Loopwright'), h('span.brand-tag', 'the crochet studio'))),
+    h('nav.nav', { 'aria-label': 'Main' },
+      h('a', { href: '#/', dataset: { section: 'home' } }, icon('yarn'), h('span', 'Studio', h('span.nav-sub', 'Today at a glance'))),
+      navLinks('side')),
+    h('div.sidebar-foot',
+      presence,
+      h('nav.nav', h('a', { href: '#/settings', dataset: { section: 'settings' } }, icon('settings'), h('span', 'Settings')))));
+  const topbar = h('header.topbar',
+    h('a.brand', { href: '#/' }, brandMark(), h('span.brand-name', 'Loopwright')),
+    h('span.spacer'),
+    h('span.dot', { title: 'Community server' }),
+    h('a.btn.ghost.icon-only', { href: '#/settings', 'aria-label': 'Settings' }, icon('settings')));
+  const tabbar = h('nav.tabbar', { 'aria-label': 'Main' }, navLinks('tab'));
+  const main = h('main', { id: 'main' }, viewEl);
+  mount(document.getElementById('app'), h('div.app', sidebar, h('div', topbar, main), tabbar));
+  document.getElementById('app').removeAttribute('aria-busy');
 }
 
-const game = new Game();
-window.game = game;   // handy in devtools; also what the smoke test pokes at
+function markNav(section) {
+  const active = section === 's' || section === 'import' ? 'share' : section;
+  document.querySelectorAll('[data-section]').forEach((a) => {
+    const on = a.dataset.section === active;
+    a.classList.toggle('on', on);
+    if (on) a.setAttribute('aria-current', 'page');
+    else a.removeAttribute('aria-current');
+  });
+}
 
-game.boot().catch((err) => {
-  console.error('[boot] failed', err);
-  const boot = document.getElementById('boot');
-  if (boot) {
-    boot.classList.add('failed');
-    boot.classList.remove('hidden');
-    boot.querySelector('.boot-sub').textContent = err.message || 'failed to start';
+async function show(route) {
+  const token = ++current.token;
+  if (current.cleanup) {
+    try {
+      current.cleanup();
+    } catch (err) {
+      console.error(err);
+    }
+    current.cleanup = null;
   }
-});
+  document.body.classList.remove('focus-mode');
+  markNav(route.section);
+  const loader = VIEWS[route.section] || VIEWS.home;
+  let mod;
+  try {
+    mod = await loader();
+  } catch (err) {
+    console.error(err);
+    mount(viewEl, h('div.page', h('div.note.err', icon('alert'), h('span', 'This part of the app failed to load. Check your connection and reload.'))));
+    return;
+  }
+  if (token !== current.token) return;
+  const page = h('div.page');
+  mount(viewEl, page);
+  try {
+    const cleanup = await mod.render(page, route);
+    if (token === current.token) current.cleanup = typeof cleanup === 'function' ? cleanup : null;
+    else if (typeof cleanup === 'function') cleanup();
+  } catch (err) {
+    console.error(err);
+    mount(page, h('div.note.err', icon('alert'), h('span', `Something went wrong: ${err.message}`)));
+  }
+  if (!route.query.keepScroll) window.scrollTo(0, 0);
+}
 
-export { game, emit, EVENTS, toast };
+
+async function checkPresence() {
+  const ok = await online(true);
+  document.querySelectorAll('.dot').forEach((d) => d.classList.toggle('on', ok));
+  const text = document.querySelector('.presence-text');
+  if (text) text.textContent = ok ? 'Community server connected' : 'Working offline, saved on this device';
+  return ok;
+}
+
+async function boot() {
+  buildShell();
+  const persistent = await store.ready;
+  applyTheme();
+  if (!persistent) toast('Storage is unavailable here (private window?). Changes will be lost when you close the tab.', { kind: 'err', timeout: 8000 });
+  await seedIfFirstRun();
+  onRoute(show);
+  await show(parseHash());
+  checkPresence();
+  setInterval(checkPresence, 60000);
+  if ('serviceWorker' in navigator && location.protocol.startsWith('http') && !navigator.webdriver) {
+    navigator.serviceWorker.register('sw.js').catch(() => {});
+  }
+  store.on('meta', (e) => {
+    if (e.id === 'settings' || e.type === 'import') applyTheme();
+  });
+}
+
+boot();

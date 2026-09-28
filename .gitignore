@@ -1,5 +1,5 @@
-# Player saves are runtime data, not source.
-saves/
+# Community data written by the server at runtime.
+data/
 
 node_modules/
 package-lock.json
