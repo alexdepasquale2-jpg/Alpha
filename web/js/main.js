@@ -3,6 +3,7 @@
 import { h, mount, toast } from './core/dom.js';
 import { brandMark } from './core/brand.js';
 import { applyTheme } from './core/theme.js';
+import './core/install.js';
 import { icon } from './core/icons.js';
 import { parseHash, onRoute } from './core/router.js';
 import * as store from './core/store.js';

@@ -9,11 +9,37 @@
   "background_color": "#faf6f0",
   "theme_color": "#b4481f",
   "icons": [
-    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+    {
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    }
   ],
   "shortcuts": [
-    { "name": "Keep working", "url": "./#/build" },
-    { "name": "New pattern", "url": "./#/create/patterns/new" },
-    { "name": "Stash", "url": "./#/plan/stash" }
+    {
+      "name": "Keep working",
+      "url": "./#/build"
+    },
+    {
+      "name": "New pattern",
+      "url": "./#/create/patterns/new"
+    },
+    {
+      "name": "Stash",
+      "url": "./#/plan/stash"
+    }
   ]
 }

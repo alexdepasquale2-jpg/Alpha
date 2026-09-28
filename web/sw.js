@@ -2,11 +2,11 @@
 // you're online) with the cache as a fallback; community photos are
 // immutable, so they're cache-first. API calls are never cached.
 
-const CACHE = 'loopwright-v1';
+const CACHE = 'loopwright-v2';
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches.open(CACHE).then((c) => c.addAll(['./', './index.html', './css/app.css', './js/main.js', './icon.svg', './manifest.webmanifest']).catch(() => {})),
+    caches.open(CACHE).then((c) => c.addAll(['./', './index.html', './css/app.css', './js/main.js', './icon.svg', './icon-192.png', './manifest.webmanifest']).catch(() => {})),
   );
   self.skipWaiting();
 });

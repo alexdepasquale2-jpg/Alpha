@@ -189,6 +189,28 @@ function work(root, id) {
   // running can be trimmed back to when you actually stopped.
   const touch = () => { p.lastTap = Date.now(); };
 
+  // Your real pace, measured from taps: finished rows (their stitch count
+  // over the time since the last row) and stitch-by-stitch taps. Long pauses
+  // are ignored.
+  const pace = { effort: 0, ms: 0, lastRow: null, lastStitch: null };
+  const paceEl = h('div');
+  function sample(effort, since, maxGap) {
+    const now = Date.now();
+    if (since && now - since < maxGap && effort > 0) {
+      pace.effort += effort;
+      pace.ms += now - since;
+      drawPace();
+    }
+    return now;
+  }
+  function drawPace() {
+    if (pace.effort < 40 || !pace.ms) return;
+    const spm = Math.round((pace.effort / pace.ms) * 60000);
+    mount(paceEl, h('div.note', { style: { marginTop: '10px' } }, icon('bolt'),
+      h('div.grow', h('b', `${spm} stitches a minute`), h('div.muted', { style: { fontSize: '12.5px' } }, `measured from ${Math.round(pace.effort)} stitches this session; estimates use ${store.settings().speed || 20}`)),
+      btn('Use it', async () => { await store.saveSettings({ speed: spm }); settings.speed = spm; drawPace(); toast('Time estimates now use your pace.'); }, { small: true })));
+  }
+
   function advanceRow(dir = 1) {
     touch();
     const before = pos.step;
@@ -202,6 +224,8 @@ function work(root, id) {
       if (dir > 0) {
         const done = steps[before];
         const next = steps[pos.step];
+        if (mode === 'row') pace.lastRow = sample(done?.count || 0, pace.lastRow, 30 * 60000);
+        else pace.lastRow = Date.now();
         if (!next) finished();
         else if (done && (next.part !== done.part || next.piece !== done.piece)) celebrate(`${done.part}${done.pieces > 1 ? ` ${done.piece} of ${done.pieces}` : ''} done!`);
       }
@@ -222,6 +246,10 @@ function work(root, id) {
       save();
       draw();
       return null;
+    }
+    if (dir > 0) {
+      const made = atoms()[pos.atom];
+      pace.lastStitch = sample(made?.p ?? 1, pace.lastStitch, 60000);
     }
     pos.atom = next;
     touch();
@@ -572,7 +600,7 @@ function work(root, id) {
       h('div.stack',
         steps.length ? h('div.card', h('div.card-head', h('h3', 'Rows'), h('span.muted', { style: { fontSize: '12.5px' } }, 'Tap to jump')), listEl) : null,
         h('div.card', h('div.card-head', h('h3', 'Counters'), null), countersEl),
-        h('div.card', h('h3', 'Hands-free'), h('div.stack.tight', wakeToggle, voiceToggle, hapticsToggle),
+        h('div.card', h('h3', 'Hands-free'), h('div.stack.tight', wakeToggle, voiceToggle, hapticsToggle), paceEl,
           h('p.muted', { style: { fontSize: '12.5px', marginTop: '10px' } }, 'Keys: Space or → next · ← back · ↓ next row · ↑ previous row.')))));
 
   function draw() {
