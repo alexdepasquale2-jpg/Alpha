@@ -223,6 +223,11 @@ class LoopwrightHandler(SimpleHTTPRequestHandler):
                 self.send_header("Cache-Control", "no-cache")
         super().end_headers()
 
+    def list_directory(self, path):
+        # Folders are never browsable; only files the app asks for are served.
+        self._error(HTTPStatus.NOT_FOUND, "not found")
+        return None
+
     def log_message(self, fmt, *args):
         if os.environ.get("LOOPWRIGHT_QUIET"):
             return

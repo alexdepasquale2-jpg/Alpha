@@ -51,16 +51,25 @@ size, deadlines, a stitch of the day.
 - A yarn stash with weight, fiber, yardage, dye lot, price and storage location.
   Filter by weight and color family. "Match a color" finds the closest yarn you own.
 - Hooks (metric, US and old UK sizes, steel hooks) and notions.
+- People you make for: measurements (head, chest, foot…), favorite colors, fibers to
+  avoid, birthdays with reminders, and everything you've made them. The hat generator
+  sizes straight from their head measurement.
+- Sales: put finished pieces up for sale at a suggested price (materials, your time,
+  overhead, markup), sell them with one tap on market day, and see revenue, profit,
+  sales by channel and what your time actually earned.
 - Calculators: gauge check with a hook suggestion, size to stitches with stitch
   multiples and starting chain, even increases and decreases, yardage from a weighed
-  swatch, quick yardage by size and stitch, yarn substitution, pricing, plus hook,
-  yarn-weight and standard-size reference tables.
+  swatch, quick yardage by size and stitch, yarn substitution, yarn weight from wraps
+  per inch or label yardage, pricing, plus hook, yarn-weight and standard-size tables.
 - A shopping list that suggests what your queued projects need beyond your stash.
 
 **Create**
 - A pattern editor with a live stitch-count checker (see below), parts that can be
   made several times ("Arms, make 2"), US/UK conversion, and an abbreviation list built
   from the stitches the pattern actually uses.
+- Graded patterns: name your sizes and write numbers as `sc 20 (24, 28)`. Every size
+  is checked on its own, a project follows just its size, and you can print all sizes
+  or one.
 - Symbol diagrams drawn from the written instructions, in the round or flat.
 - A formatted preview that prints or saves as PDF, with checkboxes for every row.
 - Paste a pattern in and it's split into parts, its terms are detected, and every count
@@ -68,7 +77,8 @@ size, deadlines, a stitch of the day.
 - A colorwork chart designer: pencil, fill, line, rectangle, mirror, undo. It writes
   tapestry (flat or in the round) and corner-to-corner instructions with yarn per color,
   bobbin counts and finished size. **Photo to chart** picks colors (or snaps to your stash
-  yarn), optionally dithers, and cleans up single-stitch "confetti".
+  yarn), optionally dithers, and cleans up single-stitch "confetti". Charts export as a
+  numbered image with a color key, or print together with their instructions.
 - An amigurumi shape builder: ball, egg, oval, tube, cone, or a freeform silhouette you
   drag into shape. It writes the rounds for your gauge with staggered increases, estimates
   yarn and stuffing, and saves them as a pattern.
@@ -90,9 +100,12 @@ patterns a print/PDF version. Also here: full backup and restore, including phot
 ("inc: 2 sc in the next stitch, 13 of 24"), with a repeat counter for bracketed
 repeats, notes that pop up at the right row, and a celebration when a part is done.
 Counters can follow the rows or count up to a number and roll over. There's a session
-timer, keep-screen-on, vibration, and voice commands ("next", "back", "pause"). Charts
-can be followed row by row too, color by color. There's also a plain counter when you
-don't need a pattern.
+timer (it notices if you walked away and left it running), keep-screen-on, vibration,
+and voice commands ("next", "back", "pause"). Charts can be followed row by row too,
+color by color. There's also a plain counter when you don't need a pattern.
+
+**Search.** Ctrl/⌘+K (or `/`) searches projects, patterns, charts, yarn, people and
+stitches, and jumps to any tool.
 
 **Imagine**
 - A palette studio: harmonies, shuffle and lock, colors pulled from a photo, a palette

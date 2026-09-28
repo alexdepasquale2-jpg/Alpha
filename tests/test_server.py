@@ -164,6 +164,12 @@ class ServerTest(unittest.TestCase):
         status, headers, _ = self.call("GET", "/js/main.js")
         self.assertEqual(headers["Content-Type"], "text/javascript; charset=utf-8")
 
+    def test_no_directory_listings(self):
+        for path in ["/js/", "/css/", "/js/views/"]:
+            status, _, payload = self.call("GET", path)
+            self.assertEqual(status, 404, path)
+            self.assertNotIn(b"Directory listing", payload)
+
     def test_rate_limit(self):
         self.httpd.RequestHandlerClass.limiter = server.RateLimiter(per_minute=3)
         codes = [self.json("POST", "/api/posts", {"author": AUTHOR, "text": f"n{i}"})[0] for i in range(5)]

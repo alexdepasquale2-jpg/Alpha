@@ -19,6 +19,8 @@ import { patternDocument, printElement } from './print.js';
 import { chartImage } from './charts.js';
 
 const STORE_OF = { pattern: 'patterns', chart: 'charts', palette: 'palettes' };
+// A share opened from a file, handed from the picker to the preview route.
+let incomingFile = null;
 const ICON_OF = { pattern: 'book', chart: 'grid', palette: 'palette' };
 const titleOf = (kind, item) => (kind === 'pattern' ? item.title : item.name) || 'Untitled';
 
@@ -267,7 +269,7 @@ function importCard() {
           return;
         }
         if (data.app !== 'loopwright' || !KINDS[data.kind]) throw new Error('Not a Loopwright share file.');
-        sessionStorage.setItem('loopwright-incoming', JSON.stringify(data));
+        incomingFile = data;
         go('/import/file');
       } catch (err) {
         toast(err.message, { kind: 'err' });
@@ -295,7 +297,7 @@ async function receive(root, { code, packed }) {
       if (!(await api.online())) throw new Error('Share codes need the Loopwright server this code came from. Ask for a self-contained link or the file instead.');
       env = (await api.getShare(code.toUpperCase())).envelope;
     } else if (packed === 'file') {
-      env = JSON.parse(sessionStorage.getItem('loopwright-incoming') || 'null');
+      env = incomingFile;
       if (!env) throw new Error('Nothing to open. Pick the file again.');
     } else {
       env = await unpack(packed);
