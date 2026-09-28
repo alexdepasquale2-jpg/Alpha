@@ -250,14 +250,20 @@ export function hat({ circ = 22, height = 8.5, stitch = 'dc', gaugeSts = 12, gau
   const rowsPer = gaugeRows / per;
   const hatCirc = Math.max(4, circ - ease);
   const target = hatCirc * stsPer;
-  const incRounds = Math.max(2, Math.round(target / c.start));
-  const count = incRounds * c.start;
-  const totalRows = Math.max(incRounds + 2, Math.round((height + slouch) * rowsPer));
+  // Whole rounds of increases, then one partial round to land close to the
+  // target (kept even so post-stitch ribbing works out).
+  const incRounds = Math.max(2, Math.floor(target / c.start));
+  let partial = Math.round(target) - incRounds * c.start;
+  if (partial % 2) partial -= 1;
+  if (partial < 2) partial = 0;
+  const crownRounds = incRounds + (partial ? 1 : 0);
+  const count = incRounds * c.start + partial;
+  const totalRows = Math.max(crownRounds + 2, Math.round((height + slouch) * rowsPer));
   // Post-stitch ribbing is dc height: convert brim depth to ribbing rounds.
   const ribRowHeight = (1 / rowsPer) * (2 / c.h);
   const brimRows = brim === 'none' ? 0 : Math.max(1, Math.round(brimDepth / ribRowHeight));
   const brimHeight = brimRows * ribRowHeight;
-  const bodyRows = Math.max(0, Math.round((height + slouch - brimHeight) * rowsPer) - incRounds);
+  const bodyRows = Math.max(0, Math.round((height + slouch - brimHeight) * rowsPer) - crownRounds);
 
   const joined = stitch !== 'sc';
   const beg = joined ? 'ch 2 (does not count as a st), ' : '';
@@ -274,6 +280,11 @@ export function hat({ circ = 22, height = 8.5, stitch = 'dc', gaugeSts = 12, gau
     lines.push(`Rnd ${r}: ${beg}${d.text}${join} (${r * c.start})`);
   }
   let r = incRounds + 1;
+  if (partial) {
+    const d = distribute(incRounds * c.start, partial, { stitch, offset: 1 });
+    lines.push(`Rnd ${r}: ${beg}${d.text}${join} (${count})`);
+    r += 1;
+  }
   if (bodyRows > 0) {
     const label = bodyRows > 1 ? `Rnds ${r}-${r + bodyRows - 1}` : `Rnd ${r}`;
     lines.push(`${label}: ${beg}${stitch} in each st around${join} (${count})`);
@@ -291,18 +302,18 @@ export function hat({ circ = 22, height = 8.5, stitch = 'dc', gaugeSts = 12, gau
     r += brimRows;
   }
   lines.push('Fasten off and weave in ends. Fold up the brim if you like a cuff.');
-  const rounds = incRounds + bodyRows + brimRows;
+  const rounds = crownRounds + bodyRows + brimRows;
   return {
     text: lines.join('\n'),
     count,
     rounds,
-    crownRounds: incRounds,
+    crownRounds,
     bodyRows,
     brimRows,
     finishedCirc: count / stsPer,
     crownDiameter: count / stsPer / Math.PI,
-    finishedHeight: (incRounds + bodyRows) / rowsPer + brimHeight,
-    stitches: (incRounds * (incRounds + 1) / 2) * c.start + (bodyRows + brimRows) * count,
+    finishedHeight: (crownRounds + bodyRows) / rowsPer + brimHeight,
+    stitches: (incRounds * (incRounds + 1) / 2) * c.start + (partial ? count : 0) + (bodyRows + brimRows) * count,
     totalRows,
   };
 }
