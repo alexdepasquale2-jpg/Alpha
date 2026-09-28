@@ -34,6 +34,15 @@ python3 server.py --port 9000 --data-dir /var/loopwright
 Python 3.10+. Nothing to install. Community posts, photos and share codes are written
 to `data/` (or `--data-dir`); everything else stays in each person's browser.
 
+Running a board for a guild or class? Start it with a moderator key:
+
+```sh
+python3 server.py --moderator-key "something-long-and-secret"
+```
+
+Anyone who enters that key in Settings can remove any post or comment. Everyone else
+can still hide a post on their own device.
+
 The app also works from any static host (GitHub Pages, a USB stick behind
 `python3 -m http.server`). Without the Loopwright server, the community board is
 switched off and shares use self-contained links instead of short codes.
@@ -156,7 +165,7 @@ can keep anywhere. The app asks the browser to protect its storage from automati
 clean-up if you press "Protect storage" in Share.
 
 The server has no accounts. Deletion rights are secret tokens held by the posting
-device (stored hashed on the server), device ids are hashed before they're
+device (stored hashed on the server), plus an optional moderator key; device ids are hashed before they're
 published, uploads are checked against their real file type, every write is
 rate-limited, and pages are served with a strict Content Security Policy.
 

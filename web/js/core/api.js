@@ -5,6 +5,27 @@ import { clientId, metaGet, metaSet } from './store.js';
 
 let status = null;
 let checkedAt = 0;
+let info = {};
+
+// The moderator key is a per-device secret, kept out of backups.
+const MOD_KEY = 'loopwright-moderator';
+export function moderatorKey() {
+  try {
+    return localStorage.getItem(MOD_KEY) || '';
+  } catch {
+    return '';
+  }
+}
+export function setModeratorKey(key) {
+  try {
+    if (key) localStorage.setItem(MOD_KEY, key);
+    else localStorage.removeItem(MOD_KEY);
+  } catch {
+    /* storage unavailable */
+  }
+}
+export const isModerator = () => !!moderatorKey();
+export const serverInfo = () => info;
 
 export async function online(force = false) {
   if (!force && status !== null && Date.now() - checkedAt < 20000) return status;
@@ -16,6 +37,7 @@ export async function online(force = false) {
     clearTimeout(t);
     const body = res.ok ? await res.json() : null;
     status = !!(body && body.app === 'loopwright' && body.community);
+    info = status ? body : {};
   } catch {
     status = false;
   }
@@ -80,8 +102,15 @@ export async function createPost(payload) {
   return res.post;
 }
 
+const modHeader = () => (moderatorKey() ? { 'X-Loopwright-Moderator': moderatorKey() } : {});
+
 export async function deletePost(id) {
-  await call('DELETE', `/api/posts/${encodeURIComponent(id)}`, null, { 'X-Loopwright-Token': tokens()[id] || '' });
+  await call('DELETE', `/api/posts/${encodeURIComponent(id)}`, null, { 'X-Loopwright-Token': tokens()[id] || '', ...modHeader() });
+}
+
+export async function checkModerator(key) {
+  const res = await call('GET', '/api/moderator', null, { 'X-Loopwright-Moderator': key });
+  return !!res?.moderator;
 }
 
 export const toggleLike = (id) => call('POST', `/api/posts/${encodeURIComponent(id)}/like`, {});
@@ -95,7 +124,7 @@ export async function addComment(id, payload) {
 export async function deleteComment(postId, commentId) {
   const t = tokens();
   const token = t[`c:${commentId}`] || t[postId] || '';
-  await call('DELETE', `/api/posts/${encodeURIComponent(postId)}/comments/${encodeURIComponent(commentId)}`, null, { 'X-Loopwright-Token': token });
+  await call('DELETE', `/api/posts/${encodeURIComponent(postId)}/comments/${encodeURIComponent(commentId)}`, null, { 'X-Loopwright-Token': token, ...modHeader() });
 }
 
 export const createShare = (envelope) => call('POST', '/api/shares', { envelope });

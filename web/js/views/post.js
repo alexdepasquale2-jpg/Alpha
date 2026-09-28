@@ -21,6 +21,8 @@ export function render(root, route) {
   let trending = [];
   let loading = false;
   let poll = null;
+  let showHidden = false;
+  const hidden = () => store.metaGet('hiddenPosts', []);
 
   root.append(pageHead('Post', 'Show your work, ask for help, cheer each other on.'));
   const tabs = segmented([['community', 'Community', 'users'], ['journal', 'My journal', 'book']], tab, (v) => { tab = v; drawFeed(); }, { label: 'Feed' });
@@ -197,8 +199,9 @@ export function render(root, route) {
       trending.length || tag ? h('div.chips', tag ? h('button.chip.on', { onClick: () => setTag('') }, `#${tag}`, icon('x')) : null, trending.filter((t) => t !== tag).map((t) => h('button.chip', { onClick: () => setTag(t) }, `#${t}`))) : null,
       loading && !posts.length ? h('p.muted.pulse', 'Loading…') : null,
       !loading && !posts.length ? empty('users', tag ? `Nothing tagged #${tag} yet` : 'Be the first to post', 'Share a progress photo or something you finished. Everyone on this server will see it.') : null,
-      posts.map((p) => postCard(p)),
-      more ? btn('Load more', loadMore, { kind: 'ghost' }) : null);
+      posts.filter((p) => showHidden || !hidden().includes(p.id)).map((p) => postCard(p)),
+      more ? btn('Load more', loadMore, { kind: 'ghost' }) : null,
+      !showHidden && posts.some((p) => hidden().includes(p.id)) ? btn(`Show ${posts.filter((p) => hidden().includes(p.id)).length} hidden`, () => { showHidden = true; drawFeed(); }, { kind: 'ghost', small: true }) : null);
   }
 
   function postCard(p) {
@@ -238,7 +241,7 @@ export function render(root, route) {
       inp.addEventListener('keydown', (e) => { if (e.key === 'Enter') send(); });
       mount(comments,
         (p.comments || []).map((c) => h('div.comment', avatar(c.author.name, c.author.color, true), h('div.body', h('b', c.author.name), c.text, h('div.muted', { style: { fontSize: '11.5px' } }, timeAgo(c.at))),
-          api.ownsComment(c.id) || own ? iconBtn('x', 'Delete comment', async () => {
+          api.ownsComment(c.id) || own || api.isModerator() ? iconBtn('x', 'Delete comment', async () => {
             try {
               await api.deleteComment(p.id, c.id);
               p.comments = p.comments.filter((x) => x.id !== c.id);
@@ -258,16 +261,23 @@ export function render(root, route) {
     }, { ico: 'comment', kind: 'ghost', small: true });
     return h('article.post',
       h('header.post-head', avatar(p.author.name, p.author.color), h('div.grow', h('div.who', p.author.name), h('div.when', timeAgo(p.at))),
-        own ? iconBtn('more', 'Post options', (e) => menu(e.currentTarget, [{ label: 'Delete post', ico: 'trash', danger: true, run: async () => {
-          if (!(await confirmDialog('Delete this post?', 'It will be removed for everyone.', { ok: 'Delete', danger: true }))) return;
-          try {
-            await api.deletePost(p.id);
-            posts = posts.filter((x) => x.id !== p.id);
+        iconBtn('more', 'Post options', (e) => menu(e.currentTarget, [
+          own || api.isModerator() ? { label: own ? 'Delete post' : 'Remove post (moderator)', ico: 'trash', danger: true, run: async () => {
+            if (!(await confirmDialog(own ? 'Delete this post?' : 'Remove this post?', 'It will be removed for everyone on this server.', { ok: own ? 'Delete' : 'Remove', danger: true }))) return;
+            try {
+              await api.deletePost(p.id);
+              posts = posts.filter((x) => x.id !== p.id);
+              drawFeed();
+            } catch (err) {
+              toast(err.message, { kind: 'err' });
+            }
+          } } : null,
+          own ? null : { label: 'Hide on this device', ico: 'eye', run: async () => {
+            await store.metaSet('hiddenPosts', [...hidden(), p.id].slice(-500));
             drawFeed();
-          } catch (err) {
-            toast(err.message, { kind: 'err' });
-          }
-        } }])) : null),
+            toast('Hidden. You can show hidden posts at the bottom of the feed.');
+          } },
+        ]))),
       p.text ? h('div.post-text', richText(p.text, setTag)) : null,
       p.images?.length ? h('div.post-images', { class: `n${Math.min(p.images.length, 2)}` }, p.images.map((src) => h('img', { src, alt: '', loading: 'lazy', onClick: () => lightbox(src) }))) : null,
       p.attachment ? h('a.post-attach', { href: `#/s/${p.attachment.code}` }, icon(p.attachment.kind === 'chart' ? 'grid' : p.attachment.kind === 'palette' ? 'palette' : 'book'),

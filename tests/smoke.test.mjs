@@ -31,7 +31,7 @@ async function freePort() {
 async function startServer() {
   const port = await freePort();
   const dataDir = mkdtempSync(join(tmpdir(), 'loopwright-'));
-  const proc = spawn('python3', [join(ROOT, 'server.py'), '--host', '127.0.0.1', '--port', String(port), '--data-dir', dataDir], {
+  const proc = spawn('python3', [join(ROOT, 'server.py'), '--host', '127.0.0.1', '--port', String(port), '--data-dir', dataDir, '--moderator-key', 'smoke-moderator-key'], {
     env: { ...process.env, LOOPWRIGHT_QUIET: '1' },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
@@ -370,6 +370,38 @@ await step('post: community post, like, comment, journal', async () => {
   await page.waitForSelector('.chip.on:has-text("#granny")');
   await page.click('.segmented button:has-text("My journal")');
   await page.waitForSelector('article.post:has-text("First granny square")');
+});
+
+await step('post: hide someone else’s post, then remove it as moderator', async () => {
+  const res = await fetch(`${base}/api/posts`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Loopwright-Client': 'someone-else-1' },
+    body: JSON.stringify({ author: { id: 'someone-else-1', name: 'Spammy', color: '#333333' }, text: 'Buy cheap yarn now' }),
+  });
+  assert.equal(res.status, 201);
+  await go(page, '#/');
+  await go(page, '#/post');
+  await page.click('.segmented button:has-text("Community")');
+  const post = page.locator('article.post:has-text("Buy cheap yarn")');
+  await post.waitFor();
+  await post.locator('button[aria-label="Post options"]').click();
+  await page.click('.popmenu button:has-text("Hide on this device")');
+  await page.waitForSelector('article.post:has-text("Buy cheap yarn")', { state: 'detached' });
+  await page.click('button:has-text("Show 1 hidden")');
+  await post.waitFor();
+  await go(page, '#/settings');
+  await page.fill('input[placeholder="From whoever runs this server"]', 'smoke-moderator-key');
+  await page.click('button:has-text("Check")');
+  await page.waitForSelector('text=This device can remove posts and comments');
+  await go(page, '#/post');
+  await page.click('.segmented button:has-text("Community")');
+  await page.click('button:has-text("Show 1 hidden")');
+  await post.waitFor();
+  await post.locator('button[aria-label="Post options"]').click();
+  await page.click('.popmenu button:has-text("Remove post (moderator)")');
+  await page.click('dialog button:has-text("Remove")');
+  await page.waitForSelector('article.post:has-text("Buy cheap yarn")', { state: 'detached' });
+  const list = await (await fetch(`${base}/api/posts`)).json();
+  assert.ok(!list.posts.some((x) => x.text.includes('cheap yarn')));
 });
 
 await step('share: server code, QR, share card, then open the code', async () => {

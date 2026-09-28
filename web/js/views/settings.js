@@ -4,7 +4,7 @@ import { h, btn, field, input, numberInput, select, segmented, pageHead, confirm
 import { icon } from '../core/icons.js';
 import * as store from '../core/store.js';
 import { go } from '../core/router.js';
-import { online } from '../core/api.js';
+import { online, serverInfo, moderatorKey, setModeratorKey, checkModerator } from '../core/api.js';
 import { avatar } from './common.js';
 import { clearSamples } from './seed.js';
 import { applyTheme } from '../core/theme.js';
@@ -75,8 +75,29 @@ export function render(root) {
           h('h3', 'Community server'),
           (() => {
             const status = h('div.row', { style: { marginTop: '8px' } }, h('span.dot'), h('span', 'Checking…'));
-            online(true).then((ok) => status.replaceChildren(h('span.dot', { class: ok ? 'on' : '' }), h('span', ok ? 'Connected. Posts and short share codes are on.' : 'Not connected. Everything else still works.')));
-            return status;
+            const mod = h('div');
+            online(true).then((ok) => {
+              status.replaceChildren(h('span.dot', { class: ok ? 'on' : '' }), h('span', ok ? 'Connected. Posts and short share codes are on.' : 'Not connected. Everything else still works.'));
+              if (!ok || !serverInfo().moderation) return;
+              let key = moderatorKey();
+              const draw = () => mod.replaceChildren(h('div.field-label', { style: { margin: '14px 0 6px' } }, 'Moderator key'),
+                moderatorKey()
+                  ? h('div.row', h('span.chip.sage', icon('check'), 'This device can remove posts and comments'), btn('Forget key', () => { setModeratorKey(''); draw(); }, { small: true, kind: 'ghost' }))
+                  : h('div.row', h('div.grow', input({ type: 'password', placeholder: 'From whoever runs this server', autocomplete: 'off', onInput: (e) => { key = e.target.value; } })),
+                    btn('Check', async () => {
+                      try {
+                        if (await checkModerator(key)) {
+                          setModeratorKey(key);
+                          toast('Moderator key accepted.');
+                          draw();
+                        } else toast('That key isn’t right.', { kind: 'err' });
+                      } catch (err) {
+                        toast(err.message, { kind: 'err' });
+                      }
+                    }, { small: true })));
+              draw();
+            });
+            return h('div', status, mod);
           })(),
           h('p.muted', { style: { fontSize: '13px', marginTop: '8px' } }, 'Start one with python3 server.py and open Loopwright from the address it prints. Anyone on the same network can join the board.')),
         h('div.card',

@@ -200,6 +200,7 @@ class RateLimiter:
 class LoopwrightHandler(SimpleHTTPRequestHandler):
     store: Store
     limiter: RateLimiter
+    moderator: str | None = None  # sha256 of the moderator key, if moderation is on
     server_version = "Loopwright"
     sys_version = ""
 
@@ -302,7 +303,12 @@ class LoopwrightHandler(SimpleHTTPRequestHandler):
     def do_GET(self):
         route = self._route()
         if route == "/api/health":
-            return self._send_json(HTTPStatus.OK, {"ok": True, "app": "loopwright", "version": VERSION, "community": True})
+            return self._send_json(HTTPStatus.OK, {"ok": True, "app": "loopwright", "version": VERSION, "community": True, "moderation": bool(self.moderator)})
+        if route == "/api/moderator":
+            # Lets a device check its key without trying it on a real post.
+            if not self._rate_ok():
+                return None
+            return self._send_json(HTTPStatus.OK, {"moderator": self._is_moderator()})
         if route == "/api/posts":
             return self._list_posts()
         m = re.match(r"^/api/shares/([A-Za-z0-9]+)$", route)
@@ -456,12 +462,16 @@ class LoopwrightHandler(SimpleHTTPRequestHandler):
         token = self.headers.get("X-Loopwright-Token", "")
         return bool(token) and secrets.compare_digest(digest(token), stored)
 
+    def _is_moderator(self):
+        key = self.headers.get("X-Loopwright-Moderator", "")
+        return bool(self.moderator and key) and secrets.compare_digest(digest("moderator:" + key), self.moderator)
+
     def _delete_post(self, post_id):
         with self.store.lock:
             post = self.store.find(post_id)
             if not post:
                 return self._error(HTTPStatus.NOT_FOUND, "no such post")
-            if not self._token_ok(post["token"]):
+            if not (self._token_ok(post["token"]) or self._is_moderator()):
                 return self._error(HTTPStatus.FORBIDDEN, "only the author can delete this")
             self.store.posts.remove(post)
             self.store.remove_media(post)
@@ -519,7 +529,7 @@ class LoopwrightHandler(SimpleHTTPRequestHandler):
             comment = next((c for c in (post or {}).get("comments", []) if c["id"] == comment_id), None)
             if not comment:
                 return self._error(HTTPStatus.NOT_FOUND, "no such comment")
-            if not (self._token_ok(comment["token"]) or self._token_ok(post["token"])):
+            if not (self._token_ok(comment["token"]) or self._token_ok(post["token"]) or self._is_moderator()):
                 return self._error(HTTPStatus.FORBIDDEN, "only the commenter or the post's author can delete this")
             post["comments"].remove(comment)
             self.store.save()
@@ -588,8 +598,12 @@ def lan_address() -> str | None:
         return None
 
 
-def make_server(host: str, port: int, data_dir: Path) -> ThreadingHTTPServer:
-    handler = type("Handler", (LoopwrightHandler,), {"store": Store(data_dir), "limiter": RateLimiter()})
+def make_server(host: str, port: int, data_dir: Path, moderator_key: str | None = None) -> ThreadingHTTPServer:
+    handler = type("Handler", (LoopwrightHandler,), {
+        "store": Store(data_dir),
+        "limiter": RateLimiter(),
+        "moderator": digest("moderator:" + moderator_key) if moderator_key else None,
+    })
     return ThreadingHTTPServer((host, port), handler)
 
 
@@ -598,17 +612,23 @@ def main(argv=None) -> int:
     parser.add_argument("--host", default="0.0.0.0", help="address to bind (default: all interfaces)")
     parser.add_argument("--port", type=int, default=int(os.environ.get("PORT", "8000")))
     parser.add_argument("--data-dir", type=Path, default=Path(os.environ.get("LOOPWRIGHT_DATA", DEFAULT_DATA_DIR)))
+    parser.add_argument("--moderator-key", default=os.environ.get("LOOPWRIGHT_MODERATOR_KEY"),
+                        help="a secret that lets whoever enters it in Settings remove any post or comment")
     args = parser.parse_args(argv)
+    if args.moderator_key is not None and len(args.moderator_key) < 8:
+        print("The moderator key needs at least 8 characters.", file=sys.stderr)
+        return 1
     if not (WEB_ROOT / "index.html").exists():
         print(f"Can't find the app at {WEB_ROOT}. Keep server.py next to the web/ folder.", file=sys.stderr)
         return 1
-    httpd = make_server(args.host, args.port, args.data_dir.resolve())
+    httpd = make_server(args.host, args.port, args.data_dir.resolve(), args.moderator_key)
     print(f"Loopwright {VERSION}")
     print(f"  This machine:  http://localhost:{args.port}/")
     lan = lan_address()
     if lan and args.host in ("0.0.0.0", ""):
         print(f"  Same wifi:     http://{lan}:{args.port}/")
     print(f"  Community data in {args.data_dir.resolve()}")
+    print("  Moderation:    on (enter the key in Settings to remove posts)" if args.moderator_key else "  Moderation:    off (start with --moderator-key to turn it on)")
     try:
         httpd.serve_forever()
     except KeyboardInterrupt:

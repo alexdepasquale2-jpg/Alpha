@@ -164,6 +164,30 @@ class ServerTest(unittest.TestCase):
         status, headers, _ = self.call("GET", "/js/main.js")
         self.assertEqual(headers["Content-Type"], "text/javascript; charset=utf-8")
 
+    def test_moderator_can_remove_anything(self):
+        self.httpd.RequestHandlerClass.moderator = server.digest("moderator:guild-secret-1")
+        status, body = self.json("GET", "/api/health")
+        self.assertTrue(body["moderation"])
+        _, body = self.json("POST", "/api/posts", {"author": AUTHOR, "text": "spam"})
+        pid = body["post"]["id"]
+        _, body = self.json("POST", f"/api/posts/{pid}/comments", {"author": AUTHOR, "text": "more spam"})
+        cid = body["comment"]["id"]
+        self.assertFalse(self.json("GET", "/api/moderator", headers={"X-Loopwright-Moderator": "wrong-key"})[1]["moderator"])
+        self.assertTrue(self.json("GET", "/api/moderator", headers={"X-Loopwright-Moderator": "guild-secret-1"})[1]["moderator"])
+        status, _ = self.json("DELETE", f"/api/posts/{pid}/comments/{cid}", headers={"X-Loopwright-Moderator": "wrong-key"})
+        self.assertEqual(status, 403)
+        status, _ = self.json("DELETE", f"/api/posts/{pid}/comments/{cid}", headers={"X-Loopwright-Moderator": "guild-secret-1"})
+        self.assertEqual(status, 204)
+        status, _ = self.json("DELETE", f"/api/posts/{pid}", headers={"X-Loopwright-Moderator": "guild-secret-1"})
+        self.assertEqual(status, 204)
+
+    def test_moderation_off_by_default(self):
+        _, body = self.json("GET", "/api/health")
+        self.assertFalse(body["moderation"])
+        _, body = self.json("POST", "/api/posts", {"author": AUTHOR, "text": "hi"})
+        status, _ = self.json("DELETE", f"/api/posts/{body['post']['id']}", headers={"X-Loopwright-Moderator": "anything"})
+        self.assertEqual(status, 403)
+
     def test_no_directory_listings(self):
         for path in ["/js/", "/css/", "/js/views/"]:
             status, _, payload = self.call("GET", path)
