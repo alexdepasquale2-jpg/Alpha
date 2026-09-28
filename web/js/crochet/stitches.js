@@ -390,3 +390,26 @@ export function stitchLabel(id, terms = 'US') {
   if (post) return `${post[1].toUpperCase()}${post[2]}`;
   return id;
 }
+
+// The core stitches as they're usually written in patterns from other
+// countries. Regional variants exist; these are the most common forms.
+export const WORLD_LANGS = [
+  ['es', 'Spanish'],
+  ['fr', 'French'],
+  ['de', 'German'],
+  ['nl', 'Dutch'],
+  ['it', 'Italian'],
+  ['pt', 'Portuguese'],
+];
+
+export const WORLD_TERMS = {
+  ch: { es: 'cadeneta (cad)', fr: 'maille en l’air (ml)', de: 'Luftmasche (Lm)', nl: 'losse (l)', it: 'catenella (cat)', pt: 'corrente (corr)' },
+  slst: { es: 'punto enano (pe)', fr: 'maille coulée (mc)', de: 'Kettmasche (Km)', nl: 'halve vaste (hv)', it: 'maglia bassissima (mbss)', pt: 'ponto baixíssimo (pbx)' },
+  sc: { es: 'punto bajo (pb)', fr: 'maille serrée (ms)', de: 'feste Masche (fM)', nl: 'vaste (v)', it: 'maglia bassa (mb)', pt: 'ponto baixo (pb)' },
+  hdc: { es: 'medio punto alto (mpa)', fr: 'demi-bride (db)', de: 'halbes Stäbchen (hStb)', nl: 'half stokje (hst)', it: 'mezza maglia alta (mma)', pt: 'meio ponto alto (mpa)' },
+  dc: { es: 'punto alto (pa)', fr: 'bride (B)', de: 'Stäbchen (Stb)', nl: 'stokje (st)', it: 'maglia alta (ma)', pt: 'ponto alto (pa)' },
+  tr: { es: 'punto alto doble (pad)', fr: 'double bride (dB)', de: 'Doppelstäbchen (DStb)', nl: 'dubbel stokje (dst)', it: 'maglia alta doppia (mad)', pt: 'ponto alto duplo (pad)' },
+  inc: { es: 'aumento (aum)', fr: 'augmentation (aug)', de: 'Zunahme (zun)', nl: 'meerderen (meerd)', it: 'aumento (aum)', pt: 'aumento (aum)' },
+  dec: { es: 'disminución (dism)', fr: 'diminution (dim)', de: 'Abnahme (abn)', nl: 'minderen (mind)', it: 'diminuzione (dim)', pt: 'diminuição (dim)' },
+  mr: { es: 'anillo mágico (am)', fr: 'cercle magique (cm)', de: 'Fadenring (FR)', nl: 'magische ring (mr)', it: 'anello magico (am)', pt: 'anel mágico (am)' },
+};

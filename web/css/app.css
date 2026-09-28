@@ -148,6 +148,7 @@ img { max-width: 100%; display: block; }
 /* ---------------------------------------------------------------- icons */
 .ico { width: 20px; height: 20px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 .ico.big { width: 28px; height: 28px; }
+.ico.tiny { width: 14px; height: 14px; }
 
 /* ---------------------------------------------------------------- shell */
 .app { display: grid; grid-template-columns: var(--sidebar) minmax(0, 1fr); min-height: 100vh; min-height: 100dvh; }
@@ -523,6 +524,18 @@ dialog.modal::backdrop { background: rgba(24, 17, 13, 0.45); backdrop-filter: bl
   background: repeating-linear-gradient(to bottom, transparent 0 25px, var(--line) 25px 26px); background-attachment: local; background-position: 0 10px;
 }
 .rows-editor textarea:focus { box-shadow: none; }
+.mobile-check { display: none; }
+@media (max-width: 1099px) {
+  .mobile-check {
+    display: flex; align-items: center; gap: 10px; width: 100%; margin-bottom: 12px; padding: 10px 14px; border-radius: var(--r-2);
+    border: 1px solid transparent; background: var(--sage-soft); color: var(--ink); font: 600 14px var(--sans); cursor: pointer; text-align: left;
+    position: sticky; top: 64px; z-index: 4;
+  }
+  .mobile-check .ico { color: var(--sage); }
+  .mobile-check.bad { background: var(--err-soft); }
+  .mobile-check.bad .ico { color: var(--err); }
+  .mobile-check .muted { font-weight: 500; font-size: 13px; }
+}
 .checker { display: flex; flex-direction: column; gap: 1px; }
 .check-line { display: grid; grid-template-columns: 88px minmax(0, 1fr) 76px; gap: 10px; padding: 7px 10px; border-radius: 8px; align-items: start; font-size: 13.5px; }
 .check-line:hover { background: var(--surface-2); }
@@ -587,6 +600,12 @@ dialog.modal::backdrop { background: rgba(24, 17, 13, 0.45); backdrop-filter: bl
 .abbr { font: 700 13px var(--mono); color: var(--accent-2); }
 .steps { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 6px; }
 .steps li::marker { color: var(--accent); font-weight: 700; }
+
+.world { border-collapse: collapse; width: 100%; font-size: 13.5px; }
+.world th, .world td { text-align: left; padding: 7px 10px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+.world thead th { font-size: 12px; color: var(--ink-3); font-weight: 700; }
+.world tbody th a { font: 700 13px var(--mono); color: var(--accent-2); text-decoration: none; }
+.world tbody tr:last-child th, .world tbody tr:last-child td { border-bottom: 0; }
 
 /* ---------------------------------------------------------------- build / work mode */
 .work { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 16px; align-items: start; }

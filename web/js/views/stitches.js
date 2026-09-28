@@ -6,7 +6,7 @@ import { icon } from '../core/icons.js';
 import * as store from '../core/store.js';
 import { go } from '../core/router.js';
 import { uid } from '../core/util.js';
-import { STITCHES, STITCH_PATTERNS, STITCH_CATEGORIES, STITCH_BY_ID } from '../crochet/stitches.js';
+import { STITCHES, STITCH_PATTERNS, STITCH_CATEGORIES, STITCH_BY_ID, WORLD_TERMS, WORLD_LANGS } from '../crochet/stitches.js';
 import { symbolEl, backLink } from './common.js';
 import { CREATE_TABS, blankPattern } from './create.js';
 
@@ -42,6 +42,7 @@ function list(root) {
             h('div.abbr', primary(s), primary(s) !== (store.settings().terms === 'UK' ? s.us : s.uk) ? h('span.muted', ` · ${secondary(s)}`) : null),
             h('div.clamp2', { style: { fontWeight: 650, fontSize: '14px', lineHeight: 1.25 } }, store.settings().terms === 'UK' ? s.ukName : s.name))))))
         : h('p.muted', 'No stitch matches that.'),
+      q || cat ? null : worldTable(),
       h('div.section-title', h('h2', 'Stitch patterns'), null),
       h('div.grid', STITCH_PATTERNS.filter((p) => !q || `${p.name} ${p.aka}`.toLowerCase().includes(q)).map((p) => h('a.card', { href: `#/create/stitches/p/${p.id}` },
         h('h3', p.name),
@@ -51,6 +52,20 @@ function list(root) {
   }
   draw();
   return null;
+}
+
+// Reading a pattern from another country: the core stitches side by side.
+function worldTable() {
+  const ids = Object.keys(WORLD_TERMS);
+  return h('section',
+    h('div.section-title', h('h2', 'Stitch names around the world'), null),
+    h('div.card', { style: { overflowX: 'auto', padding: '8px 12px' } },
+      h('table.world', h('thead', h('tr', h('th', 'US'), h('th', 'UK'), WORLD_LANGS.map(([, name]) => h('th', name)))),
+        h('tbody', ids.map((id) => {
+          const s = STITCH_BY_ID[id];
+          return h('tr', h('th', h('a', { href: `#/create/stitches/${id}` }, id === 'dec' ? 'dec' : s.us)), h('td', id === 'dec' ? 'dec' : s.uk), WORLD_LANGS.map(([code]) => h('td', WORLD_TERMS[id][code])));
+        })))),
+    h('p.muted', { style: { fontSize: '12.5px', marginTop: '6px' } }, 'The most common forms; abbreviations vary between designers, so check the pattern’s own key.'));
 }
 
 function detail(root, id) {
@@ -90,6 +105,9 @@ function detail(root, id) {
             ? `Write it as “${s.uk}”. In US patterns the same stitch is “${s.us}”.`
             : `Write it as “${s.us}”. In UK patterns the same stitch is “${s.uk}”.`),
           h('p.muted', { style: { fontSize: '13px' } }, 'The pattern checker understands it, including counts like “3 dc in next st”, repeats and totals.')),
+        WORLD_TERMS[id] ? h('div.card',
+          h('h3', 'In other languages'),
+          h('dl.kv', { style: { marginTop: '8px' } }, WORLD_LANGS.map(([code, name]) => [h('dt', name), h('dd', WORLD_TERMS[id][code])]))) : null,
         h('div.card',
           h('h3', 'Related'),
           h('div.chips', STITCHES.filter((x) => x.cat === s.cat && x.id !== s.id).slice(0, 8).map((x) => h('a.chip', { href: `#/create/stitches/${x.id}`, style: { textDecoration: 'none' } }, uk ? x.uk : x.us)))))));

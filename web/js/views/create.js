@@ -57,6 +57,7 @@ export function blankPattern(extra = {}) {
 
 function library(root) {
   let q = '';
+  let cat = null;
   const content = h('div');
   const search = h('div.search', icon('search'), input({ type: 'search', placeholder: 'Search patterns', 'aria-label': 'Search patterns', onInput: (e) => { q = e.target.value.toLowerCase(); draw(); } }));
   root.append(
@@ -67,13 +68,18 @@ function library(root) {
     content);
 
   function draw() {
-    const all = store.all('patterns').filter((p) => !q || `${p.title} ${p.designer || ''} ${p.category || ''} ${(p.tags || []).join(' ')}`.toLowerCase().includes(q));
+    const cats = [...new Set(store.all('patterns').map((p) => p.category).filter(Boolean))].sort();
+    const all = store.all('patterns').filter((p) => (!cat || p.category === cat) && (!q || `${p.title} ${p.designer || ''} ${p.category || ''} ${(p.tags || []).join(' ')}`.toLowerCase().includes(q)));
     if (!store.all('patterns').length) {
       mount(content, empty('book', 'No patterns yet', 'Write one from scratch, paste one in to check its counts, or generate one from a shape, hat or granny square.', h('div.btn-row', { style: { justifyContent: 'center' } },
         btn('New pattern', () => go('/create/patterns/new'), { kind: 'primary', ico: 'plus' }), btn('Paste a pattern', pasteImport, { ico: 'upload' }))));
       return;
     }
-    mount(content, 
+    mount(content,
+      cats.length > 1 ? h('div.chips', { style: { marginBottom: '14px' } },
+        h('button.chip', { class: cat ? '' : 'on', onClick: () => { cat = null; draw(); } }, 'All'),
+        cats.map((c) => h('button.chip', { class: cat === c ? 'on' : '', onClick: () => { cat = cat === c ? null : c; draw(); } }, c))) : null,
+      all.length ? null : h('p.muted', 'No pattern matches.'),
       h('div.grid', all.map((p) => {
         const pp = parsed(p);
         const d = diagram(pp.sections[0]?.parsed.lines || [], { maxRows: 8 });
@@ -234,6 +240,7 @@ function editor(root, id, route) {
   function writeTab() {
     const checker = h('div');
     const summary = h('div');
+    const mobileBar = h('button.mobile-check', { type: 'button', onClick: () => checker.closest('aside')?.scrollIntoView({ behavior: 'smooth' }) });
     const areas = [];
 
     const refresh = debounce(() => {
@@ -255,6 +262,11 @@ function editor(root, id, route) {
         p.warnings ? h('span.chip.warn', `${p.warnings} to review`) : null,
         p.stitches ? h('span.chip', icon('yarn'), `≈ ${yardsText(est.yards)}`) : null,
         p.stitches ? h('span.chip', icon('clock'), `≈ ${duration(est.minutes * 60000)}`) : null));
+      mount(mobileBar,
+        p.errors ? icon('alert') : icon('check'),
+        h('span.grow', p.errors ? `${p.errors} count error${p.errors === 1 ? '' : 's'}${p.warnings ? `, ${p.warnings} to review` : ''}` : p.warnings ? `Counts add up · ${p.warnings} to review` : `Counts add up · ${p.rows} rows`),
+        h('span.muted', 'Details'), icon('chevron-down'));
+      mobileBar.classList.toggle('bad', !!p.errors);
       mount(checker, ...p.sections.map((sec, si) => h('div',
         p.sections.length > 1 ? h('div.check-line.heading', sec.name || `Part ${si + 1}`) : null,
         h('div.checker', sec.parsed.lines.map((line, li) => checkLine(line, () => focusLine(si, li)))))));
@@ -372,6 +384,7 @@ function editor(root, id, route) {
     refresh.flush();
     return h('div.editor',
       h('div',
+        mobileBar,
         sectionsEl,
         h('div.btn-row', { style: { marginTop: '12px' } },
           btn('Add part', () => { update({ sections: [...pat.sections, { id: uid(6), name: `Part ${pat.sections.length + 1}`, text: '', pieces: 1 }] }); drawSections(); refresh(); }, { ico: 'plus' }),

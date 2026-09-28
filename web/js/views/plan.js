@@ -196,6 +196,7 @@ function projectDetail(root, id) {
       h('div.stack',
         progressCard(prog),
         photosCard(),
+        journalCard(),
         moneyCard())));
   }
 
@@ -250,6 +251,25 @@ function projectDetail(root, id) {
           save.flush();
           draw();
         }, { ico: 'clock', small: true, kind: 'ghost' })));
+  }
+
+  // Journal entries and posts about this project, newest first.
+  function journalCard() {
+    const entries = store.all('journal', { sort: 'at' }).filter((j) => j.projectId === p.id);
+    let text = '';
+    const inp = textarea('', (v) => { text = v; }, { rows: 2, placeholder: 'A quick progress note…', 'aria-label': 'Journal note' });
+    return h('div.card',
+      h('div.card-head', h('h3', 'Journal'), h('a.btn.small.ghost', { href: `#/post?project=${p.id}` }, icon('post'), 'Post')),
+      h('div.row.top', h('div.grow', inp), btn('Add', async () => {
+        if (!text.trim()) return;
+        await store.put('journal', { text: text.trim(), tags: [], photoIds: [], projectId: p.id, at: Date.now() });
+        draw();
+      }, { small: true })),
+      entries.length ? h('div.stack.tight', { style: { marginTop: '12px' } }, entries.slice(0, 6).map((j) => h('div.well', { style: { fontSize: '14px' } },
+        h('div.muted', { style: { fontSize: '12px' } }, `${new Date(j.at || j.createdAt).toLocaleDateString()}${j.remoteId ? ' · posted' : ''}`),
+        h('div', { style: { whiteSpace: 'pre-wrap' } }, j.text),
+        j.photoIds?.length ? h('div.attach-grid', { style: { marginTop: '8px' } }, j.photoIds.map((mid) => h('div.ph', photo(mid)))) : null)))
+        : null);
   }
 
   function photosCard() {

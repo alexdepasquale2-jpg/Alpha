@@ -2,7 +2,7 @@
 // or stitch by stitch, keeps counters, times sessions, keeps the screen on,
 // and listens for "next" when your hands are full.
 
-import { h, mount, btn, iconBtn, field, input, numberInput, select, pageHead, modal, confirmDialog, toast, empty, menu, segmented, toggle } from '../core/dom.js';
+import { h, mount, btn, iconBtn, field, input, numberInput, select, pageHead, modal, confirmDialog, promptDialog, toast, empty, menu, segmented, toggle } from '../core/dom.js';
 import { icon } from '../core/icons.js';
 import * as store from '../core/store.js';
 import { go } from '../core/router.js';
@@ -312,6 +312,7 @@ function work(root, id) {
           h('div.now-label', step.label, step.rangeLabel ? h('span.muted', { style: { fontSize: '16px', fontFamily: 'var(--sans)', marginLeft: '10px' } }, `of ${step.rangeLabel}`) : null)),
         segmented([['row', 'Rows', 'list'], ['stitch', 'Stitches', 'stitch']], mode, (v) => { mode = v; save({ trackMode: v }); drawNow(); }, { small: true, label: 'Tracking mode' })),
       step.notes?.length ? h('div.stack.tight', { style: { marginTop: '12px' } }, step.notes.map((n) => h('div.note.warn', icon('flag'), h('span', n)))) : null,
+      myNote(step) ? h('div.note', { style: { marginTop: '10px' } }, icon('pin'), h('span.grow', myNote(step)), btn('Edit', () => editNote(step), { small: true, kind: 'ghost' })) : null,
       src.kind === 'chart'
         ? h('div.seq', step.runs.map((r, i) => h('span.part', { class: mode === 'stitch' && runIndex(step, pos.atom) === i ? 'cur' : '', style: { background: src.palette[r.color], color: inkFor(src.palette[r.color]), borderColor: 'transparent' } }, `${r.n} ${colorLetter(r.color)}`)))
         : h('p.now-text', step.text.replace(/^[^:]*:\s*/, '')),
@@ -333,8 +334,23 @@ function work(root, id) {
       h('div.now-actions',
         btn('Back', () => (mode === 'stitch' ? advanceStitch(-1) : advanceRow(-1)), { ico: 'undo', kind: 'ghost', big: true }),
         btn(mode === 'stitch' ? 'Next stitch' : 'Row done', () => (mode === 'stitch' ? advanceStitch(1) : advanceRow(1)), { kind: 'primary', ico: mode === 'stitch' ? 'chevron-right' : 'check', big: true }),
-        mode === 'stitch' ? btn('Skip to next row', () => advanceRow(1), { kind: 'ghost', ico: 'chevron-down', small: true }) : null),
+        mode === 'stitch' ? btn('Skip to next row', () => advanceRow(1), { kind: 'ghost', ico: 'chevron-down', small: true }) : null,
+        myNote(step) ? null : btn('Note', () => editNote(step), { kind: 'ghost', ico: 'pin', small: true, title: 'Add your own note to this row' })),
       h('div.row', { style: { marginTop: '14px' } }, progressBar(pos.step / Math.max(1, total)), h('span.muted.num', { style: { fontSize: '13px' } }, `${pos.step} / ${total}`)));
+  }
+
+  // Your own notes on a row ("did one extra inc here"), kept on the project.
+  const noteKey = (s) => `${s.part}|${s.piece || 1}|${s.label}`;
+  const myNote = (s) => (p.rowNotes || {})[noteKey(s)] || '';
+  async function editNote(s) {
+    const text = await promptDialog(`Note for ${s.label}`, { value: myNote(s), placeholder: 'Changes you made, where you placed a marker…', multiline: true, ok: 'Save note' });
+    if (text === undefined) return;
+    const rowNotes = { ...(p.rowNotes || {}) };
+    if (text.trim()) rowNotes[noteKey(s)] = text.trim();
+    else delete rowNotes[noteKey(s)];
+    p = { ...p, rowNotes };
+    save();
+    draw();
   }
 
   function runIndex(step, atomIdx) {
@@ -394,7 +410,7 @@ function work(root, id) {
         style: { border: 0, width: '100%', textAlign: 'left', font: 'inherit', color: 'inherit', background: i === pos.step ? null : 'none' },
       },
       i < pos.step ? icon('check') : i === pos.step ? icon('chevron-right') : h('span', { style: { width: '20px' } }),
-      h('div.grow', h('div.title.ellipsis', `${s.label}${s.pieces > 1 ? ` · ${s.piece}/${s.pieces}` : ''}`), h('div.meta.ellipsis', s.text.replace(/^[^:]*:\s*/, ''))),
+      h('div.grow', h('div.title.ellipsis', `${s.label}${s.pieces > 1 ? ` · ${s.piece}/${s.pieces}` : ''}`, myNote(s) ? h('span', { title: myNote(s), style: { marginLeft: '6px', verticalAlign: '-2px', display: 'inline-flex' } }, icon('pin', 'tiny')) : null), h('div.meta.ellipsis', s.text.replace(/^[^:]*:\s*/, ''))),
       s.count ? h('span.muted.num', String(s.count)) : null);
     }));
   }
