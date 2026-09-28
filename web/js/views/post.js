@@ -8,12 +8,13 @@ import { go } from '../core/router.js';
 import { timeAgo, blobToDataUrl, shrinkImage } from '../core/util.js';
 import * as api from '../core/api.js';
 import { envelope, makeLink } from '../core/share.js';
+import { can } from '../core/host.js';
 import { photo, addPhotos, avatar, richText, tagsFrom, projectProgress } from './common.js';
 
 const POLL_MS = 30000;
 
 export function render(root, route) {
-  let tab = route.query.tab || 'community';
+  let tab = route.query.tab || (can.server ? 'community' : 'journal');
   let tag = route.query.tag || '';
   let online = api.lastKnownOnline();
   let posts = [];
@@ -31,7 +32,7 @@ export function render(root, route) {
   root.append(h('div.cols.side', h('div.stack', composerEl, h('div.row.between.wrap', tabs, h('div.row', btn(null, () => refresh(true), { ico: 'refresh', kind: 'ghost', title: 'Refresh' }))), feedEl), sideInfo()));
 
   // ---- composer ------------------------------------------------------------
-  const draft = { text: '', photos: [], attach: null, where: 'community', keep: true };
+  const draft = { text: '', photos: [], attach: null, where: can.server ? 'community' : 'journal', keep: true };
   if (route.query.project) {
     const p = store.get('projects', route.query.project);
     if (p) {
@@ -73,7 +74,7 @@ export function render(root, route) {
           btn('Attach', (e) => attachMenu(e.currentTarget), { ico: 'link', kind: 'ghost', small: true }),
           projects.length ? select([['', 'No project'], ...projects.map((p) => [p.id, p.name])], draft.projectId || '', (v) => { draft.projectId = v || null; }, { style: { width: 'auto', minHeight: '32px', padding: '4px 30px 4px 10px', fontSize: '13px' }, 'aria-label': 'Link a project' }) : null),
         h('div.row.wrap', { style: { gap: '8px' } },
-          segmented([['community', 'Community'], ['journal', 'Journal only']], draft.where, (v) => { draft.where = v; }, { small: true, label: 'Where to post' }),
+          !can.server ? null : segmented([['community', 'Community'], ['journal', 'Journal only']], draft.where, (v) => { draft.where = v; }, { small: true, label: 'Where to post' }),
           btn('Post', submit, { kind: 'primary', ico: 'send' })))));
   }
 
@@ -186,6 +187,12 @@ export function render(root, route) {
     if (tab === 'journal') {
       const items = store.all('journal', { sort: 'at' });
       mount(feedEl, items.length ? items.map((j) => journalCard(j)) : empty('book', 'Your journal is empty', 'Journal posts stay on this device: progress notes, photos, what you’d do differently next time.'));
+      return;
+    }
+    if (!online && !can.server) {
+      mount(feedEl, h('div.card.stitched',
+        h('h3', 'No community board in this copy'),
+        h('p.soft', 'The board lives on a Loopwright server, and this shared copy runs without one. Your posts go to your journal, and you can still hand patterns to friends with share codes from Share.')));
       return;
     }
     if (!online) {

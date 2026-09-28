@@ -2,6 +2,7 @@
 // here fails soft and callers check `online()` first.
 
 import { clientId, metaGet, metaSet } from './store.js';
+import { can } from './host.js';
 
 let status = null;
 let checkedAt = 0;
@@ -28,6 +29,7 @@ export const isModerator = () => !!moderatorKey();
 export const serverInfo = () => info;
 
 export async function online(force = false) {
+  if (!can.server) return (status = false);
   if (!force && status !== null && Date.now() - checkedAt < 20000) return status;
   checkedAt = Date.now();
   try {

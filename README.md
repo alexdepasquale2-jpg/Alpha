@@ -47,6 +47,22 @@ The app also works from any static host (GitHub Pages, a USB stick behind
 `python3 -m http.server`). Without the Loopwright server, the community board is
 switched off and shares use self-contained links instead of short codes.
 
+### As a claude.ai artifact
+
+`artifact/loopwright.html` is the page for publishing Loopwright as a claude.ai
+artifact, with `web/` as the root for its supporting files (`css/app.css`, `js/**`,
+`icon.svg`). It marks itself with `data-host="artifact"`, and the app adapts to the
+artifact frame (`web/js/core/host.js`):
+
+- There's no community board. Posts go to the journal.
+- Patterns, charts and palettes are shared as share codes to paste into Share → Open a
+  share, not as links.
+- Downloads open a sheet to copy the text or save the image, and backups can be pasted
+  back in.
+- Printing, voice commands, Web Share and installing are hidden.
+
+Everything saves in each viewer's own browser.
+
 ## What's in it
 
 **Studio.** Today at a glance: the project to pick back up, hours this week, stash

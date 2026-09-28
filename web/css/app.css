@@ -709,6 +709,8 @@ canvas.preview { width: 100%; height: auto; border-radius: var(--r-2); display: 
 .share-kind.chart { background: var(--sage-soft); color: var(--sage); }
 .share-kind.palette { background: var(--plum-soft); color: var(--plum); }
 .card-canvas { width: 100%; max-width: 420px; border-radius: var(--r-2); box-shadow: var(--shadow-2); display: block; }
+.save-text { width: 100%; font: 12px/1.45 var(--mono); }
+.save-image { display: block; max-width: 100%; max-height: 60vh; margin: 0 auto; border-radius: var(--r-2); background: #fff; }
 
 /* ---------------------------------------------------------------- pattern documents */
 .doc { max-width: 760px; margin: 0 auto; font-size: 15px; }

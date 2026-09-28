@@ -7,7 +7,8 @@ import * as store from '../core/store.js';
 import { go } from '../core/router.js';
 import { copyText, download, slug, pickFile, readText, fmt, loadImage } from '../core/util.js';
 import { qrSvg } from '../core/qr.js';
-import { envelope, makeLink, unpack, parseShareInput, KINDS } from '../core/share.js';
+import { envelope, makeLink, pack, unpack, parseShareInput, KINDS } from '../core/share.js';
+import { can, saveVerb } from '../core/host.js';
 import * as api from '../core/api.js';
 import { diagram } from '../crochet/diagram.js';
 import { parsePattern } from '../crochet/parser.js';
@@ -27,7 +28,7 @@ const titleOf = (kind, item) => (kind === 'pattern' ? item.title : item.name) ||
 export async function render(root, route) {
   if (route.section === 's') return receive(root, { code: route.parts[0] });
   if (route.section === 'import') return receive(root, { packed: route.parts[0] });
-  root.append(pageHead('Share', 'Hand a pattern to a friend, print it, post it, or back up everything you’ve made.'));
+  root.append(pageHead('Share', can.print ? 'Hand a pattern to a friend, print it, post it, or back up everything you’ve made.' : 'Hand a pattern, chart or palette to a friend, or back up everything you’ve made.'));
   const { kind, id } = route.query;
   const item = kind && id ? store.get(STORE_OF[kind], id) : null;
   const panel = h('div');
@@ -55,7 +56,7 @@ function pickerPanel(root) {
   };
   mount(root, h('div.card',
     h('h2', 'Share something'),
-    h('p.soft', { style: { fontSize: '14px', margin: '4px 0 12px' } }, 'Pick what to share. You get a link, a QR code to show on your phone, a share image for social media, and a file.'),
+    h('p.soft', { style: { fontSize: '14px', margin: '4px 0 12px' } }, can.dataLinks ? 'Pick what to share. You get a link, a QR code to show on your phone, a share image for social media, and a file.' : 'Pick what to share. You get a share code to send and a share image for social media.'),
     segmented([['pattern', 'Patterns', 'book'], ['chart', 'Charts', 'grid'], ['palette', 'Palettes', 'palette']], kind, (v) => { kind = v; draw(); }, { label: 'Kind' }),
     h('div', { style: { marginTop: '12px' } }, list)));
   draw();
@@ -75,6 +76,7 @@ function subtitle(kind, it) {
 // ---------------------------------------------------------------------------
 
 async function sharePanel(root, kind, item) {
+  if (!can.dataLinks) return codePanel(root, kind, item);
   let selfContained = !(await api.online());
   let link = null;
   const linkBox = h('div');
@@ -125,6 +127,33 @@ async function sharePanel(root, kind, item) {
       h('hr'),
       h('div.cols.even', h('div', h('h3', { style: { marginBottom: '10px' } }, 'QR code'), qrBox), h('div', h('h3', { style: { marginBottom: '10px' } }, 'Share card'), cardBox))));
   makeIt();
+}
+
+// Inside an artifact, links can't carry a share, so we hand over the packed
+// share as text to paste into "Open a share" instead.
+async function codePanel(root, kind, item) {
+  const codeBox = h('div');
+  const cardBox = h('div');
+  mount(root,
+    backLink('#/share', 'Share something else'),
+    h('div.card.pad-lg',
+      h('div.share-item', h('span.share-kind', { class: kind }, icon(ICON_OF[kind])), h('div.grow', h('div.eyebrow', KINDS[kind]), h('h2', titleOf(kind, item)), h('div.muted', subtitle(kind, item)))),
+      h('hr'),
+      h('h3', 'Share code'),
+      h('div', { style: { marginTop: '10px' } }, codeBox),
+      h('hr'),
+      h('h3', { style: { marginBottom: '10px' } }, 'Share card'),
+      cardBox));
+  mount(codeBox, h('p.muted.pulse', 'Packing…'));
+  const code = await pack(envelope(kind, item));
+  mount(codeBox,
+    h('div.link-box', input({ value: code, readonly: true, 'aria-label': 'Share code', onFocus: (e) => e.target.select() }), btn('Copy', async () => { toast((await copyText(code)) ? 'Share code copied.' : 'Select the code and copy it yourself.'); }, { ico: 'copy', kind: 'primary' })),
+    h('p.muted', { style: { fontSize: '12.5px', marginTop: '8px' } }, `Send this code (${fmt(code.length / 1024, 1)} KB) by text or email. The other person opens Loopwright, goes to Share → Open a share, and pastes it. The ${kind} travels inside the code; nothing is uploaded.`));
+  mount(cardBox, h('p.muted.pulse', 'Drawing a share card…'));
+  const canvas = await shareCard(kind, item, null);
+  canvas.className = 'card-canvas';
+  mount(cardBox, canvas, h('div.btn-row', { style: { marginTop: '10px' } },
+    btn('Save image', () => canvas.toBlob((b) => download(`${slug(titleOf(kind, item))}.png`, b)), { ico: 'download', small: true })));
 }
 
 // A 1080×1350 image for social media: preview, details, QR.
@@ -257,8 +286,8 @@ function importCard() {
   let text = '';
   return h('div.card',
     h('h3', 'Open a share'),
-    h('p.soft', { style: { fontSize: '14px', margin: '4px 0 10px' } }, 'Paste a link or 8-letter code someone sent you, or open a .loopwright.json file.'),
-    h('div.row', h('div.grow', input({ placeholder: 'Link or code', 'aria-label': 'Share link or code', onInput: (e) => { text = e.target.value; }, onKeydown: (e) => { if (e.key === 'Enter') open(); } })), btn('Open', () => open(), { kind: 'primary' })),
+    h('p.soft', { style: { fontSize: '14px', margin: '4px 0 10px' } }, can.dataLinks ? 'Paste a link or 8-letter code someone sent you, or open a .loopwright.json file.' : 'Paste a share code someone sent you, or open a .loopwright.json file.'),
+    h('div.row', h('div.grow', input({ placeholder: can.dataLinks ? 'Link or code' : 'Share code', 'aria-label': can.dataLinks ? 'Share link or code' : 'Share code', onInput: (e) => { text = e.target.value; }, onKeydown: (e) => { if (e.key === 'Enter') open(); } })), btn('Open', () => open(), { kind: 'primary' })),
     btn('Open a file', async () => {
       const f = await pickFile('.json,application/json');
       if (!f) return;
@@ -279,7 +308,7 @@ function importCard() {
   function open() {
     const parsedInput = parseShareInput(text);
     if (!parsedInput) {
-      toast('That doesn’t look like a Loopwright link or code.', { kind: 'err' });
+      toast(can.dataLinks ? 'That doesn’t look like a Loopwright link or code.' : 'That doesn’t look like a Loopwright share code.', { kind: 'err' });
       return;
     }
     go(parsedInput.code ? `/s/${parsedInput.code}` : `/import/${parsedInput.packed}`);
@@ -371,46 +400,64 @@ function backupCard() {
     if (!u) return;
     usage.textContent = `Using ${fmt((u.usage || 0) / 1048576, 1)} MB on this device${u.persisted ? ' · protected from automatic clean-up' : ''}.`;
   });
-  let withPhotos = true;
+  // Photos make a backup large, too large to copy around as text.
+  let withPhotos = can.download;
   return h('div.card',
     h('h3', 'Backup and restore'),
-    h('p.soft', { style: { fontSize: '14px', margin: '4px 0 10px' } }, 'Everything lives on this device. Download a backup now and then, and use it to move to a new phone or computer.'),
+    h('p.soft', { style: { fontSize: '14px', margin: '4px 0 10px' } }, can.download
+      ? 'Everything lives on this device. Download a backup now and then, and use it to move to a new phone or computer.'
+      : 'Everything lives in this browser. Save a backup now and then: it’s text you can keep in a note or email to yourself, then paste back in on any device.'),
     toggle('Include photos', withPhotos, (v) => { withPhotos = v; }),
     h('div.btn-row', { style: { marginTop: '12px' } },
-      btn('Download backup', async () => {
+      btn(`${saveVerb} backup`, async () => {
         const data = await store.exportAll({ media: withPhotos });
         download(`loopwright-backup-${new Date().toISOString().slice(0, 10)}.json`, data);
         await store.metaSet('lastBackup', Date.now());
-        toast('Backup downloaded.');
+        if (can.download) toast('Backup downloaded.');
       }, { kind: 'primary', ico: 'download' }),
       btn('Restore…', async () => {
         const f = await pickFile('.json,application/json');
         if (!f) return;
-        let data;
-        try {
-          data = JSON.parse(await readText(f));
-        } catch {
-          toast('That file isn’t valid JSON.', { kind: 'err' });
-          return;
-        }
-        const mode = await modal({
-          title: 'Restore a backup',
-          body: h('p', 'Merge keeps what you have and adds anything newer from the backup. Replace clears this device first.'),
-          actions: [{ label: 'Cancel', kind: 'ghost', value: null }, { label: 'Replace', kind: 'danger', value: 'replace' }, { label: 'Merge', kind: 'primary', value: 'merge' }],
-        });
-        if (!mode) return;
-        if (mode === 'replace' && !(await confirmDialog('Replace everything?', 'Projects, patterns, charts, stash and journal on this device will be replaced by the backup.', { ok: 'Replace', danger: true }))) return;
-        try {
-          const n = await store.importAll(data, mode);
-          toast(`Restored ${n} items.`);
-        } catch (err) {
-          toast(err.message, { kind: 'err' });
-        }
+        restore(await readText(f));
       }, { ico: 'upload' }),
+      can.download ? null : btn('Paste a backup', async () => {
+        let text = '';
+        const ok = await modal({
+          title: 'Paste a backup',
+          body: h('div.stack.tight',
+            h('p.soft', { style: { fontSize: '14px' } }, 'Paste the backup text you saved earlier.'),
+            h('textarea.save-text', { rows: 8, 'aria-label': 'Backup text', onInput: (e) => { text = e.target.value; } })),
+          actions: [{ label: 'Cancel', kind: 'ghost', value: null }, { label: 'Continue', kind: 'primary', value: true }],
+        });
+        if (ok && text.trim()) restore(text);
+      }, { ico: 'text', kind: 'ghost' }),
       navigator.storage?.persist ? btn('Protect storage', async () => {
         const ok = await navigator.storage.persist();
         toast(ok ? 'The browser will keep your data even when space runs low.' : 'The browser declined; installing the app to your home screen usually helps.');
       }, { kind: 'ghost', ico: 'lock' }) : null),
     h('div', { style: { marginTop: '10px' } }, usage));
+}
+
+async function restore(text) {
+  let data;
+  try {
+    data = JSON.parse(text);
+  } catch {
+    toast('That isn’t a valid backup.', { kind: 'err' });
+    return;
+  }
+  const mode = await modal({
+    title: 'Restore a backup',
+    body: h('p', 'Merge keeps what you have and adds anything newer from the backup. Replace clears this device first.'),
+    actions: [{ label: 'Cancel', kind: 'ghost', value: null }, { label: 'Replace', kind: 'danger', value: 'replace' }, { label: 'Merge', kind: 'primary', value: 'merge' }],
+  });
+  if (!mode) return;
+  if (mode === 'replace' && !(await confirmDialog('Replace everything?', 'Projects, patterns, charts, stash and journal on this device will be replaced by the backup.', { ok: 'Replace', danger: true }))) return;
+  try {
+    const n = await store.importAll(data, mode);
+    toast(`Restored ${n} items.`);
+  } catch (err) {
+    toast(err.message, { kind: 'err' });
+  }
 }
 

@@ -12,6 +12,7 @@ import { distribute, YARN_WEIGHTS, HOOKS } from '../crochet/calc.js';
 import { diagram } from '../crochet/diagram.js';
 import { parsed, estimates, photo, addPhotos, backLink, yardsText, symbolEl, CATEGORIES } from './common.js';
 import { patternDocument, printElement, abbreviations } from './print.js';
+import { can, saveVerb } from '../core/host.js';
 
 export const CREATE_TABS = [
   ['#/create/patterns', 'Patterns', 'book'],
@@ -223,8 +224,8 @@ function editor(root, id, route) {
         btn('Work on it', startProject, { kind: 'primary', ico: 'play' }),
         btn('Share', () => { persist.flush(); go(`/share?kind=pattern&id=${pat.id}`); }, { ico: 'share' }),
         iconBtn('more', 'More', (e) => menu(e.currentTarget, [
-          { label: 'Print or save PDF', ico: 'print', run: () => { persist.flush(); printElement(patternDocument(pat, { size: previewSize }), pat.title); } },
-          { label: 'Download as text', ico: 'download', run: () => download(`${slug(pat.title)}.txt`, asText(pat), 'text/plain') },
+          can.print ? { label: 'Print or save PDF', ico: 'print', run: () => { persist.flush(); printElement(patternDocument(pat, { size: previewSize }), pat.title); } } : null,
+          { label: `${saveVerb} as text`, ico: 'download', run: () => download(`${slug(pat.title)}.txt`, asText(pat), 'text/plain') },
           { label: `Convert to ${pat.terms === 'UK' ? 'US' : 'UK'} terms`, ico: 'swap', run: convert },
           { label: 'Version history', ico: 'clock', run: showHistory },
           { label: 'Duplicate', ico: 'copy', run: async () => { persist.flush(); const c = await store.put('patterns', { ...pat, id: null, title: `${pat.title} (copy)`, sample: false, history: [] }); go(`/create/patterns/${c.id}`); } },
@@ -270,7 +271,7 @@ function editor(root, id, route) {
     else if (tab === 'preview') {
       body.append(h('div.row.wrap', { style: { justifyContent: 'flex-end', marginBottom: '10px' } },
         graded() ? select([['all', 'All sizes'], ...pat.sizes.map((n, i) => [i, `Size ${n} only`])], previewSize === null ? 'all' : previewSize, (v) => { previewSize = v === 'all' ? null : Number(v); draw(); }, { style: { width: 'auto' }, 'aria-label': 'Size to show' }) : null,
-        btn('Print or save PDF', () => { persist.flush(); printElement(patternDocument(pat, { size: previewSize }), pat.title); }, { ico: 'print' })),
+        can.print ? btn('Print or save PDF', () => { persist.flush(); printElement(patternDocument(pat, { size: previewSize }), pat.title); }, { ico: 'print' }) : null),
       h('div.card.pad-lg', patternDocument(pat, { size: previewSize })));
     }
     else body.append(writeTab());
@@ -540,7 +541,7 @@ function editor(root, id, route) {
           h('h3', 'Key'),
           h('div.list', d.legend.map((x) => h('div.list-row', h('span', { style: { width: '34px', display: 'grid', placeItems: 'center' } }, symbolEl(x.id, 30)), h('div.grow', h('div.abbr', x.label), h('div.meta', x.name))))),
           h('p.muted', { style: { fontSize: '12.5px', marginTop: '10px' } }, d.mode === 'round' ? 'Read from the center out, counter-clockwise from the number.' : 'Read from the bottom. Odd rows right to left, even rows left to right.'),
-          btn('Download SVG', () => download(`${slug(pat.title)}-${slug(parts[which].name)}.svg`, d.svg.replace('<svg ', '<svg style="background:#fff" ').replace('</svg>', '<style>.sym{fill:none;stroke:#222;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}.sym-fill{fill:#222}.ring-guide{fill:none;stroke:#ccc;stroke-dasharray:2 5}.rlabel{font:700 9px sans-serif;fill:#888}</style></svg>'), 'image/svg+xml'), { ico: 'download', small: true }))));
+          btn(`${saveVerb} SVG`, () => download(`${slug(pat.title)}-${slug(parts[which].name)}.svg`, d.svg.replace('<svg ', '<svg style="background:#fff" ').replace('</svg>', '<style>.sym{fill:none;stroke:#222;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}.sym-fill{fill:#222}.ring-guide{fill:none;stroke:#ccc;stroke-dasharray:2 5}.rlabel{font:700 9px sans-serif;fill:#888}</style></svg>'), 'image/svg+xml'), { ico: 'download', small: true }))));
     };
     drawD();
     return h('div',

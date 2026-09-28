@@ -9,6 +9,7 @@ import { avatar } from './common.js';
 import { clearSamples } from './seed.js';
 import { applyTheme } from '../core/theme.js';
 import { canInstall, install, isInstalled } from '../core/install.js';
+import { can } from '../core/host.js';
 
 const COLORS = ['#b4481f', '#93391a', '#c08a1e', '#5c7a57', '#2f6690', '#7a4a78', '#a3294a', '#3b3b3b'];
 
@@ -65,13 +66,16 @@ export function render(root) {
               const n = await clearSamples();
               toast(`Removed ${n} sample items.`);
             }, { kind: 'ghost', ico: 'trash' }))),
-        isInstalled() ? null : h('div.card',
+        isInstalled() || !can.install ? null : h('div.card',
           h('h3', 'Install the app'),
           h('p.soft', { style: { fontSize: '14px', margin: '6px 0 12px' } }, 'Runs full screen, opens from your home screen, and works offline at the market or on the train.'),
           canInstall()
             ? btn('Install Loopwright', async () => { if (await install()) toast('Installed. Find it on your home screen.'); }, { kind: 'primary', ico: 'download' })
             : h('p.muted', { style: { fontSize: '13px' } }, 'On iPhone or iPad: tap Share, then “Add to Home Screen”. On Android: browser menu → “Install app”.')),
-        h('div.card',
+        can.server ? null : h('div.card',
+          h('h3', 'This shared copy'),
+          h('p.soft', { style: { fontSize: '14px', margin: '6px 0 0' } }, 'Everything you make here is saved in this browser only. Share patterns, charts and palettes with share codes, and keep a backup from Share. The community board, printing and file downloads need the full app (run python3 server.py from the Loopwright folder).')),
+        !can.server ? null : h('div.card',
           h('h3', 'Community server'),
           (() => {
             const status = h('div.row', { style: { marginTop: '8px' } }, h('span.dot'), h('span', 'Checking…'));

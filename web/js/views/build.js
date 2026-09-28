@@ -13,6 +13,7 @@ import { colorLetter } from '../crochet/generators.js';
 import { inkFor } from '../crochet/color.js';
 import { projectProgress, progressBar, coverId, thumb, statusChip, parsed, backLink } from './common.js';
 import { loadChart } from './charts.js';
+import { can } from '../core/host.js';
 
 export async function render(root, route) {
   const [id] = route.parts;
@@ -616,7 +617,7 @@ function work(root, id) {
       h('div.stack',
         steps.length ? h('div.card', h('div.card-head', h('h3', 'Rows'), h('span.muted', { style: { fontSize: '12.5px' } }, 'Tap to jump')), listEl) : null,
         h('div.card', h('div.card-head', h('h3', 'Counters'), null), countersEl),
-        h('div.card', h('h3', 'Hands-free'), h('div.stack.tight', wakeToggle, voiceToggle, hapticsToggle), paceEl,
+        h('div.card', h('h3', 'Hands-free'), h('div.stack.tight', wakeToggle, can.voice ? voiceToggle : null, hapticsToggle), paceEl,
           h('p.muted', { style: { fontSize: '12.5px', marginTop: '10px' } }, 'Keys: Space or → next · ← back · ↓ next row · ↑ previous row.')))));
 
   function draw() {

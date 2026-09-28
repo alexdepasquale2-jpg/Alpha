@@ -8,6 +8,7 @@ import { icon } from './core/icons.js';
 import { parseHash, onRoute } from './core/router.js';
 import * as store from './core/store.js';
 import { online } from './core/api.js';
+import { ARTIFACT } from './core/host.js';
 import { seedIfFirstRun } from './views/seed.js';
 import { openSearch, installSearchKeys } from './views/search.js';
 
@@ -15,7 +16,7 @@ export const SECTIONS = [
   { id: 'plan', label: 'Plan', ico: 'plan', sub: 'Projects, stash, calculators' },
   { id: 'create', label: 'Create', ico: 'create', sub: 'Patterns, charts, shapes' },
   { id: 'post', label: 'Post', ico: 'post', sub: 'Community and journal' },
-  { id: 'share', label: 'Share', ico: 'share', sub: 'Links, QR, print, backup' },
+  { id: 'share', label: 'Share', ico: 'share', sub: ARTIFACT ? 'Share codes, cards, backup' : 'Links, QR, print, backup' },
   { id: 'build', label: 'Build', ico: 'build', sub: 'Row tracker and counters' },
   { id: 'imagine', label: 'Imagine', ico: 'imagine', sub: 'Palettes and generators' },
 ];
@@ -126,7 +127,7 @@ async function boot() {
   await show(parseHash());
   checkPresence();
   setInterval(checkPresence, 60000);
-  if ('serviceWorker' in navigator && location.protocol.startsWith('http') && !navigator.webdriver) {
+  if ('serviceWorker' in navigator && location.protocol.startsWith('http') && !navigator.webdriver && !ARTIFACT) {
     navigator.serviceWorker.register('sw.js').catch(() => {});
   }
   store.on('meta', (e) => {

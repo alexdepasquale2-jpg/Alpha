@@ -16,6 +16,7 @@ import { inkFor, nearestTo, harmony, colorName } from '../crochet/color.js';
 import { YARN_WEIGHTS, yardsPerSc } from '../crochet/calc.js';
 import { backLink, yardsText, len, yarnName } from './common.js';
 import { printElement } from './print.js';
+import { can, saveVerb } from '../core/host.js';
 import { CREATE_TABS } from './create.js';
 
 const load = (row) => ({ ...row, cells: unpackCells(row.cells, row.w * row.h) });
@@ -599,8 +600,8 @@ function editor(root, id, route) {
         }, { kind: 'primary', ico: 'play' }),
         btn('Share', () => { persist.flush(); go(`/share?kind=chart&id=${row0.id}`); }, { ico: 'share' }),
         iconBtn('more', 'More', (e) => menu(e.currentTarget, [
-          { label: 'Download chart image', ico: 'download', run: () => exportChart(chart, meta).toBlob((b) => download(`${slug(meta.name)}.png`, b)) },
-          { label: 'Print chart and instructions', ico: 'print', run: () => printChart(chart, meta) },
+          { label: `${saveVerb} chart image`, ico: 'download', run: () => exportChart(chart, meta).toBlob((b) => download(`${slug(meta.name)}.png`, b)) },
+          can.print ? { label: 'Print chart and instructions', ico: 'print', run: () => printChart(chart, meta) } : null,
           { label: 'Clean up confetti', ico: 'sparkle', run: () => { snapshot(); const r = cleanConfetti(chart, 2); chart = r.chart; paint(); commit(); toast(`${r.changed} lone stitches merged into their neighbours.`); } },
           { label: 'Flip left–right', ico: 'mirror', run: () => { snapshot(); const cells = []; for (let y = 0; y < chart.h; y++) for (let x = 0; x < chart.w; x++) cells.push(chart.cells[y * chart.w + (chart.w - 1 - x)]); chart = { ...chart, cells }; paint(); commit(); } },
           { label: 'Clear', ico: 'eraser', run: () => { snapshot(); chart = { ...chart, cells: chart.cells.map(() => 0) }; paint(); commit(); } },

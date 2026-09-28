@@ -1,5 +1,7 @@
 // Small shared helpers.
 
+import { can } from './host.js';
+
 const ALPHABET = 'abcdefghijkmnopqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 
 export function uid(n = 12) {
@@ -92,6 +94,10 @@ export function daysUntil(t) {
 
 export function download(filename, data, type = 'application/json') {
   const blob = data instanceof Blob ? data : new Blob([typeof data === 'string' ? data : JSON.stringify(data, null, 2)], { type });
+  if (!can.download) {
+    import('./save.js').then((m) => m.saveSheet(filename, blob));
+    return;
+  }
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
