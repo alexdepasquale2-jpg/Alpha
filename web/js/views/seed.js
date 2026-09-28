@@ -90,6 +90,24 @@ export async function seedIfFirstRun() {
     sample: true,
   }, { silent: true });
 
+  await store.put('patterns', {
+    title: 'Everyday Ribbed Cowl',
+    designer: 'Loopwright sample',
+    category: 'Scarf & cowl',
+    difficulty: 1,
+    terms: 'US',
+    yarnWeight: 4,
+    hookMm: 5.5,
+    sizes: ['S', 'M', 'L'],
+    gauge: { sts: 14, rows: 16, per: 4, unit: 'in' },
+    size: 'Circumference 20 (24, 28) in, 11 in deep',
+    materials: 'Worsted wool, about 260 (310, 360) yd. 5.5 mm hook. Yarn needle.',
+    notes: 'A graded pattern: numbers for M and L follow in brackets. Pick your size on the project page and the tracker shows only your numbers. Worked sideways in back-loop single crochet, then seamed into a loop.',
+    sections: [{ id: 's1', name: 'Cowl', text: 'Ch 41.\nRow 1: sc in 2nd ch from hook and in each ch across, turn (40)\nRows 2-80 (96, 112): ch 1, sc in BLO of each st across, turn (40)\nFasten off, leaving a long tail. Whipstitch the first and last rows together.', pieces: 1 }],
+    tags: ['cowl', 'graded'],
+    sample: true,
+  }, { silent: true });
+
   await store.put('projects', {
     name: 'Pocket Whale for Mira',
     status: 'active',
@@ -126,6 +144,7 @@ export async function seedIfFirstRun() {
   const cells = HEART.flatMap((row) => [...row].map((ch) => (ch === 'X' ? 1 : 0)));
   await store.put('charts', { name: 'Little heart', w: 15, h: 13, palette: ['#efe3cc', '#b7410e'], cells: packCells(cells), mode: 'c2c', sample: true }, { silent: true });
   await store.put('shopping', { text: 'Fiberfill, 1 bag', done: false, sample: true }, { silent: true });
+  await store.put('people', { name: 'Mira', relation: 'Niece, age 6', color: '#7a4a78', birthday: new Date(2020, new Date(now + 12 * DAY).getMonth(), new Date(now + 12 * DAY).getDate(), 12).getTime(), m: { head: 20, hand: 6 }, likes: 'Blue, purple, anything with a face', avoid: 'Scratchy wool', sample: true }, { silent: true });
 
   await store.metaSet('seeded', now);
   return true;
@@ -133,7 +152,7 @@ export async function seedIfFirstRun() {
 
 export async function clearSamples() {
   let n = 0;
-  for (const s of ['projects', 'patterns', 'charts', 'yarns', 'tools', 'palettes', 'journal', 'shopping']) {
+  for (const s of ['projects', 'patterns', 'charts', 'yarns', 'tools', 'palettes', 'journal', 'shopping', 'people']) {
     for (const row of store.all(s)) {
       if (row.sample) {
         await store.remove(s, row.id);

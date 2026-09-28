@@ -8,6 +8,7 @@ import { parseHash, onRoute } from './core/router.js';
 import * as store from './core/store.js';
 import { online } from './core/api.js';
 import { seedIfFirstRun } from './views/seed.js';
+import { openSearch, installSearchKeys } from './views/search.js';
 
 export const SECTIONS = [
   { id: 'plan', label: 'Plan', ico: 'plan', sub: 'Projects, stash, calculators' },
@@ -40,6 +41,7 @@ function buildShell() {
   const presence = h('div.presence', h('span.dot'), h('span.presence-text', 'Checking for community…'));
   const sidebar = h('aside.sidebar',
     h('a.brand', { href: '#/' }, brandMark(), h('span', h('span.brand-name', 'Loopwright'), h('span.brand-tag', 'the crochet studio'))),
+    h('button.search-trigger', { type: 'button', onClick: openSearch, 'aria-label': 'Search' }, icon('search'), h('span', 'Search'), h('kbd', navigator.platform?.includes('Mac') ? '⌘K' : 'Ctrl K')),
     h('nav.nav', { 'aria-label': 'Main' },
       h('a', { href: '#/', dataset: { section: 'home' } }, icon('yarn'), h('span', 'Studio', h('span.nav-sub', 'Today at a glance'))),
       navLinks('side')),
@@ -50,6 +52,7 @@ function buildShell() {
     h('a.brand', { href: '#/' }, brandMark(), h('span.brand-name', 'Loopwright')),
     h('span.spacer'),
     h('span.dot', { title: 'Community server' }),
+    h('button.btn.ghost.icon-only', { type: 'button', onClick: openSearch, 'aria-label': 'Search' }, icon('search')),
     h('a.btn.ghost.icon-only', { href: '#/settings', 'aria-label': 'Settings' }, icon('settings')));
   const tabbar = h('nav.tabbar', { 'aria-label': 'Main' }, navLinks('tab'));
   const main = h('main', { id: 'main' }, viewEl);
@@ -118,6 +121,7 @@ async function boot() {
   if (!persistent) toast('Storage is unavailable here (private window?). Changes will be lost when you close the tab.', { kind: 'err', timeout: 8000 });
   await seedIfFirstRun();
   onRoute(show);
+  installSearchKeys();
   await show(parseHash());
   checkPresence();
   setInterval(checkPresence, 60000);

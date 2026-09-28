@@ -19,6 +19,8 @@ const TABS = [
   ['#/plan/projects', 'Projects', 'board'],
   ['#/plan/stash', 'Stash', 'yarn'],
   ['#/plan/hooks', 'Hooks & notions', 'hook'],
+  ['#/plan/people', 'People', 'users'],
+  ['#/plan/sales', 'Sales', 'tag'],
   ['#/plan/calc', 'Calculators', 'calculator'],
   ['#/plan/shopping', 'Shopping', 'bag'],
 ];
@@ -42,6 +44,8 @@ export async function render(root, route) {
     case 'hooks': return hooksTab(body);
     case 'calc': return calcTab(body);
     case 'shopping': return shoppingTab(body);
+    case 'people': return (await import('./people.js')).peopleTab(body);
+    case 'sales': return (await import('./sales.js')).salesTab(body);
     default: return projectsTab(body);
   }
 }
@@ -203,9 +207,16 @@ function projectDetail(root, id) {
       h('div.card-head', h('h3', 'Overview'), p.patternId ? h('a.btn.small.ghost', { href: `#/create/patterns/${p.patternId}` }, icon('book'), 'Open pattern') : h('a.btn.small.ghost', { href: '#/create/patterns/new' }, icon('plus'), 'Write one')),
       h('div.fields',
         field('Pattern', patSel),
+        (() => {
+          const pat = p.patternId ? store.get('patterns', p.patternId) : null;
+          if (!pat || (pat.sizes || []).length < 2) return null;
+          return field('Size', select(pat.sizes.map((n, i) => [i, n]), p.sizeIndex ?? 0, (v) => { set('sizeIndex', Number(v)); save.flush(); setTimeout(draw, 300); }));
+        })(),
         field('Category', select([['', '—'], ...CATEGORIES.map((c) => [c, c])], p.category || '', (v) => set('category', v))),
         field('Hook', select(hookOpts, p.hookMm || '', (v) => set('hookMm', v ? Number(v) : null))),
-        field('Made for', input({ value: p.recipient || '', placeholder: 'Me, a gift, a customer…', onInput: (e) => set('recipient', e.target.value) })),
+        field('Made for', h('div',
+          input({ value: p.recipient || '', placeholder: 'Me, a gift, a customer…', list: 'people-list', onInput: (e) => set('recipient', e.target.value) }),
+          h('datalist', { id: 'people-list' }, store.all('people').map((x) => h('option', { value: x.name }))))),
         field('Due', input({ type: 'date', value: dateInput(p.deadline), onChange: (e) => set('deadline', parseDateInput(e.target.value)) })),
         field('Started', input({ type: 'date', value: dateInput(p.startedAt), onChange: (e) => set('startedAt', parseDateInput(e.target.value)) })),
         field('Finished size', input({ value: p.size || '', placeholder: `e.g. 40 × 50 ${unitLabel()}`, onInput: (e) => set('size', e.target.value) })),
@@ -316,7 +327,17 @@ function projectDetail(root, id) {
         h('dt', 'Your time'), h('dd', `${fmt(hours, 1)} h at ${money(st.rate || 15, st.currency)}/h`),
         h('dt', 'Wholesale'), h('dd', money(pr.wholesale, st.currency)),
         h('dt', 'Retail'), h('dd', h('b', money(pr.retail, st.currency)))),
-      h('p.muted', { style: { fontSize: '12.5px', marginTop: '10px' } }, 'Materials + labour + 10% overhead = wholesale; retail is double. Set your hourly rate in Settings.'));
+      h('p.muted', { style: { fontSize: '12.5px', marginTop: '10px' } }, 'Materials + labour + 10% overhead = wholesale; retail is double. Set your hourly rate in Settings.'),
+      p.status === 'done' ? h('div.row.wrap', { style: { marginTop: '10px' } },
+        p.sale?.sold ? h('span.chip.sage', icon('check'), `Sold for ${money(Number(p.sale.sold.price) || 0, st.currency)}`)
+          : p.sale?.forSale ? h('span.chip.accent', icon('tag'), `For sale at ${money(Number(p.sale.price) || 0, st.currency)}`) : null,
+        btn(p.sale?.forSale ? 'Edit sale' : 'Put up for sale', async () => {
+          save.flush();
+          const { saleModal } = await import('./sales.js');
+          await saleModal(store.get('projects', p.id) || p);
+          p = store.get('projects', p.id) || p;
+          draw();
+        }, { small: true, ico: 'tag' })) : null);
   }
 
   draw();
@@ -591,6 +612,7 @@ function calcTab(root) {
   const qk = { preset: 'Throw', w: 50, h: 60, weight: 4, fabric: 'sc', ypk: 200 };
   const sub = { patYards: 200, patGrams: 100, patSkeins: 6, subYards: 220, subGrams: 100 };
   const pr = { materials: 24, hours: 12, rate: st.rate || 15, overhead: 10, markup: 2 };
+  const yarnId = { wpi: 10, yards: 200, grams: 100 };
 
   root.append(h('div.grid.two',
     calc('gauge', 'Gauge check', `Stitches and rows ${perText}, from the pattern and from your swatch.`,
@@ -661,6 +683,20 @@ function calcTab(root) {
         const s = substitute(sub);
         const tone = { good: 'Good match', close: 'Close: swatch first', poor: 'Different thickness: expect a different fabric' }[s.match];
         return result(`${s.skeins} skeins (${yardsText(s.totalYards)})`, s.match ? `${tone} — yards per gram differ by ${fmt(Math.abs(s.densityDiffPct), 0)}%.` : null);
+      }),
+    calc('wpi', 'What weight is this yarn?', 'Wrap it snugly around a ruler for an inch and count the wraps, or use the label’s yards and grams.',
+      (refresh) => group(num(yarnId, 'wpi', 'Wraps per inch'), num(yarnId, 'yards', 'Yards on the label'), num(yarnId, 'grams', 'Grams on the label'))(refresh),
+      () => {
+        // Weights are ordered finest first, so the first minimum you reach is the answer.
+        const byWpi = yarnId.wpi ? YARN_WEIGHTS.find((w) => yarnId.wpi >= w.wpi[0]) || YARN_WEIGHTS[7] : null;
+        const per100 = yarnId.yards && yarnId.grams ? (yarnId.yards / yarnId.grams) * 100 : null;
+        const byLen = per100 ? YARN_WEIGHTS.find((w) => per100 >= w.ypc[0]) || YARN_WEIGHTS[7] : null;
+        if (!byWpi && !byLen) return h('span.muted', 'Enter wraps per inch, or yards and grams.');
+        return [
+          byWpi ? h('div.result', `${byWpi.id} · ${byWpi.name}`, h('span.muted', { style: { fontSize: '14px', fontFamily: 'var(--sans)' } }, ` by wraps (${byWpi.aka})`)) : null,
+          byLen ? h('div.result-sub', `${Math.round(per100)} yd per 100 g suggests ${byLen.name} (${byLen.aka}).`) : null,
+          byWpi || byLen ? h('div.result-sub', `Start with a ${(byWpi || byLen).hook[0]}–${(byWpi || byLen).hook[1]} mm hook.`) : null,
+        ];
       }),
     calc('pricing', 'Pricing', 'For markets, commissions and shops: materials, your time, overhead and markup.',
       (refresh) => h('div.stack.tight',

@@ -13,6 +13,7 @@ import { parseSection } from '../crochet/parser.js';
 import { packCells } from '../crochet/chart.js';
 import { yarnName, yardsText, len, unitLabel } from './common.js';
 import { blankPattern } from './create.js';
+import { headOptions } from './people.js';
 
 const TABS = [
   ['#/imagine/palettes', 'Palettes', 'palette'],
@@ -36,7 +37,7 @@ export function render(root, route) {
   switch (tab) {
     case 'granny': return grannyTab(body);
     case 'stripes': return stripesTab(body);
-    case 'hats': return hatsTab(body);
+    case 'hats': return hatsTab(body, route);
     case 'ideas': return ideasTab(body);
     default: return palettesTab(body);
   }
@@ -531,7 +532,7 @@ function stripesTab(root) {
 // Hats
 // ---------------------------------------------------------------------------
 
-function hatsTab(root) {
+function hatsTab(root, route) {
   const cm = store.settings().units === 'cm';
   const k = cm ? 2.54 : 1;
   const s = { size: 'Adult M', circ: 22 * k, height: 8.5 * k, stitch: 'hdc', sts: 13, rows: 10, brim: 'ribbed', brimDepth: 1.5 * k, slouch: 0, weight: 4, ease: 1.5 * k };
@@ -600,16 +601,36 @@ function hatsTab(root) {
     ctx.fillText(`${result.finishedCirc.toFixed(1)} ${u} around`, W / 2, H - 8);
   }
   const conv = (v) => (cm ? v * 2.54 : v);
+  // A preset head size, or a person from Plan → People.
+  function usePreset(v) {
+    if (v.startsWith('person:')) {
+      const person = store.get('people', v.slice(7));
+      if (person?.m?.head) {
+        s.circ = conv(person.m.head);
+        // Hat height scales with head size between the standard presets.
+        const nearest = HEADS.reduce((a, b) => (Math.abs(b.circ - person.m.head) < Math.abs(a.circ - person.m.head) ? b : a));
+        s.height = conv(nearest.height);
+        s.person = person.name;
+      }
+      return;
+    }
+    s.person = null;
+    const head = HEADS.find((x) => x.name === v);
+    if (head) { s.circ = conv(head.circ); s.height = conv(head.height); }
+  }
+  if (route?.query.person && store.get('people', route.query.person)) {
+    s.size = `person:${route.query.person}`;
+    usePreset(s.size);
+  }
   const wrap = h('div');
   root.append(wrap);
   const layout = () => mount(wrap, h('div.cols',
     h('div.stack',
       h('div.card',
         h('div.fields',
-          field('Size', select([...HEADS.map((x) => [x.name, x.name]), ['custom', 'Custom']], s.size, (v) => {
+          field('Size', select([...headOptions(), ['custom', 'Custom']], s.size, (v) => {
             s.size = v;
-            const head = HEADS.find((x) => x.name === v);
-            if (head) { s.circ = conv(head.circ); s.height = conv(head.height); }
+            usePreset(v);
             layout();
             draw();
           })),
@@ -625,7 +646,7 @@ function hatsTab(root) {
         h('div.btn-row', { style: { marginTop: '12px' } },
           btn('Save as pattern', async () => {
             const pat = await store.put('patterns', blankPattern({
-              title: `Top-down ${s.stitch} beanie (${s.size === 'custom' ? `${s.circ.toFixed(1)} ${u}` : s.size})`, category: 'Hat', yarnWeight: s.weight,
+              title: `Top-down ${s.stitch} beanie (${s.person ? `for ${s.person}` : s.size === 'custom' ? `${s.circ.toFixed(1)} ${u}` : s.size})`, category: 'Hat', yarnWeight: s.weight,
               gauge: { sts: s.sts, rows: s.rows, per, unit: u }, size: `${result.finishedCirc.toFixed(1)} ${u} around, ${result.finishedHeight.toFixed(1)} ${u} tall`,
               notes: 'Worked top down from a flat circle. Try it on after the crown: it should lie flat and reach just past the top of your ears.',
               sections: [{ id: uid(6), name: 'Hat', text: result.text, pieces: 1 }],

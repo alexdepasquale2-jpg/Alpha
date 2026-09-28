@@ -69,20 +69,24 @@ export function thumb(id, fallbackIcon = 'yarn') {
 
 const parsedCache = new Map();
 
-export function parsed(pattern) {
+/** Parsed pattern, cached. `size` picks one size of a graded pattern. */
+export function parsed(pattern, size = null) {
   if (!pattern) return null;
-  const hit = parsedCache.get(pattern.id);
-  if (hit && hit.at === pattern.updatedAt && hit.terms === pattern.terms) return hit.value;
-  const value = parsePattern(pattern);
-  parsedCache.set(pattern.id, { at: pattern.updatedAt, terms: pattern.terms, value });
+  const key = `${pattern.id}:${size ?? 0}`;
+  const hit = parsedCache.get(key);
+  if (hit && hit.at === pattern.updatedAt && hit.terms === pattern.terms && hit.sizes === (pattern.sizes || []).join('|')) return hit.value;
+  const value = parsePattern(pattern, { size });
+  parsedCache.set(key, { at: pattern.updatedAt, terms: pattern.terms, sizes: (pattern.sizes || []).join('|'), value });
   return value;
 }
+
+export const sizeNames = (pattern) => ((pattern?.sizes || []).length > 1 ? pattern.sizes : null);
 
 export function projectProgress(project) {
   const pat = project.patternId ? store.get('patterns', project.patternId) : null;
   if (project.status === 'done') return { pct: 1, done: 1, total: 1, pattern: pat };
   if (!pat) return { pct: null, pattern: null };
-  const p = parsed(pat);
+  const p = parsed(pat, project.sizeIndex ?? 0);
   const total = p.steps.length;
   const done = Math.min(total, project.pos?.step || 0);
   return { pct: total ? done / total : 0, done, total, pattern: pat, parsed: p, step: p.steps[done] || null };

@@ -279,6 +279,59 @@ await step('plan: hooks and notions', async () => {
   await page.waitForSelector('.list-row:has-text("Blocking pins")');
 });
 
+await step('plan: people, and a hat sized for them', async () => {
+  await go(page, '#/plan/people');
+  await page.click('button:has-text("Add a person")');
+  await page.fill('dialog label:has-text("Name") input', 'Jo');
+  await page.fill('dialog label:has-text("Head circumference") input', '21.5');
+  await page.click('dialog button:has-text("Save")');
+  await page.waitForSelector('.card:has-text("Jo")');
+  await page.click('.card:has-text("Jo")');
+  await page.click('dialog button:has-text("Design a hat")');
+  await page.waitForSelector('text=Every round checks out');
+  assert.equal(await page.inputValue('label:has-text("Head") input'), '21.5');
+});
+
+await step('plan: sell a finished project on market day', async () => {
+  await go(page, '#/plan/sales');
+  await page.click('button:has-text("Put something up for sale")');
+  await page.click('dialog .list-row:has-text("Harvest Beanie")');
+  await page.fill('dialog label:has-text("Price") input', '45');
+  await page.click('dialog button:has-text("Put up for sale")');
+  await page.waitForSelector('.card:has-text("Harvest Beanie")');
+  await page.click('.segmented button:has-text("Market day")');
+  await page.click('button.card:has-text("Harvest Beanie")');
+  await page.waitForSelector('.big-number:has-text("45")');
+  await page.click('.segmented button:has-text("Sold")');
+  await page.waitForSelector('.list-row:has-text("Harvest Beanie")');
+});
+
+await step('plan: yarn weight from wraps per inch', async () => {
+  await go(page, '#/plan/calc');
+  const wpi = page.locator('#wpi');
+  await wpi.locator('input').first().fill('8');
+  await page.waitForTimeout(100);
+  assert.match(await wpi.locator('.well').innerText(), /Bulky/);
+});
+
+await step('create: graded pattern checks each size', async () => {
+  await go(page, '#/create/patterns');
+  await page.click('.pattern-card:has-text("Everyday Ribbed Cowl")');
+  await page.waitForSelector('text=Checking size');
+  await page.fill('.rows-editor textarea', 'Ch 21 (25, 29).\nRow 1: sc in 2nd ch from hook and in each ch across, turn (20 (24, 27))');
+  await page.waitForSelector('.chips button.chip.err:has-text("L")');
+  await page.click('.chips button.chip:has-text("L")');
+  await page.waitForSelector('.check-line.has-error:has-text("Says 27")');
+});
+
+await step('search: jump anywhere from the keyboard', async () => {
+  await go(page, '#/');
+  await page.keyboard.press('Control+k');
+  await page.fill('dialog input[aria-label="Search"]', 'bobble');
+  await page.keyboard.press('Enter');
+  await page.waitForSelector('h1:has-text("Bobble")');
+});
+
 await step('imagine: palette, granny, stripes, hats, ideas', async () => {
   await go(page, '#/imagine/palettes');
   const before = await page.locator('.palette-strip .hex').first().innerText();

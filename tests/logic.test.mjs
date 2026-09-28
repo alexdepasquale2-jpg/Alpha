@@ -2,7 +2,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { parseLine, parseSection, parsePattern, usedStitches } from '../web/js/crochet/parser.js';
+import { parseLine, parseSection, parsePattern, usedStitches, pickSize, hasSizes } from '../web/js/crochet/parser.js';
 import { usToUk, ukToUs, detectTerms } from '../web/js/crochet/terms.js';
 import { distribute, compareGauge, startingChain, skeinsNeeded, substitute, hookFor, hookLabel, yardageFromSwatch, quickYardage, pricing, flatCircle, yardsPerSc } from '../web/js/crochet/calc.js';
 import { amigurumi, hat, granny, stripes, stripesPattern, blanketLayout, SHAPES } from '../web/js/crochet/generators.js';
@@ -114,6 +114,18 @@ test('a whole pattern flattens into tracker steps, with pieces made twice', () =
 test('numbering gaps are pointed out', () => {
   const s = parseSection('Rnd 1: 6 sc in MR (6)\nRnd 2: inc x6 (12)\nRnd 4: (sc, inc) x6 (18)');
   assert.ok(s.lines[2].issues.some((i) => /jumps/.test(i.msg)));
+});
+
+test('graded patterns are checked one size at a time', () => {
+  assert.equal(pickSize('Rows 2-18 (20, 22): sc across (40 (48, 56))', 2), 'Rows 2-22: sc across (56)');
+  assert.equal(pickSize('Row 3: sc 2 (-, 1), dec', 1), 'Row 3: sc 0, dec');
+  assert.equal(pickSize('Rnd 3: (sc, inc) x6 (18)', 1), 'Rnd 3: (sc, inc) x6 (18)');
+  assert.equal(pickSize('(12 dc, 4 ch-2 sps)', 1), '(12 dc, 4 ch-2 sps)');
+  assert.ok(hasSizes('sc 20 [24, 28]'));
+  assert.ok(!hasSizes('Rnd 1: 6 sc in MR (6)'));
+  const pat = { sizes: ['S', 'M', 'L'], sections: [{ text: 'Ch 21 (25, 29).\nRow 1: sc in 2nd ch from hook and in each ch across, turn (20 (24, 28))\nRows 2-10 (12, 14): ch 1, sc across, turn (20 (24, 28))\nRow 11 (13, 15): ch 1, sc 9 (11, 13), sc2tog, sc 9 (11, 13), turn (19 (23, 26))' }] };
+  assert.deepEqual([0, 1, 2].map((k) => parsePattern(pat, { size: k }).errors), [0, 0, 1]);
+  assert.deepEqual([0, 1, 2].map((k) => parsePattern(pat, { size: k }).rows), [11, 13, 15]);
 });
 
 test('UK patterns are read in UK terms', () => {

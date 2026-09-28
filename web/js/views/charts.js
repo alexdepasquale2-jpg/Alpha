@@ -14,6 +14,7 @@ import { colorLetter } from '../crochet/generators.js';
 import { inkFor, nearestTo, harmony, colorName } from '../crochet/color.js';
 import { YARN_WEIGHTS, yardsPerSc } from '../crochet/calc.js';
 import { backLink, yardsText, len, yarnName } from './common.js';
+import { printElement } from './print.js';
 import { CREATE_TABS } from './create.js';
 
 const load = (row) => ({ ...row, cells: unpackCells(row.cells, row.w * row.h) });
@@ -546,7 +547,8 @@ function editor(root, id, route) {
         }, { kind: 'primary', ico: 'play' }),
         btn('Share', () => { persist.flush(); go(`/share?kind=chart&id=${row0.id}`); }, { ico: 'share' }),
         iconBtn('more', 'More', (e) => menu(e.currentTarget, [
-          { label: 'Download PNG', ico: 'download', run: () => chartImage(chart, Math.max(10, Math.min(24, Math.floor(2400 / Math.max(chart.w, chart.h)))), { grid: true }).toBlob((b) => download(`${slug(meta.name)}.png`, b)) },
+          { label: 'Download chart image', ico: 'download', run: () => exportChart(chart, meta).toBlob((b) => download(`${slug(meta.name)}.png`, b)) },
+          { label: 'Print chart and instructions', ico: 'print', run: () => printChart(chart, meta) },
           { label: 'Clean up confetti', ico: 'sparkle', run: () => { snapshot(); const r = cleanConfetti(chart, 2); chart = r.chart; paint(); commit(); toast(`${r.changed} lone stitches merged into their neighbours.`); } },
           { label: 'Flip left–right', ico: 'mirror', run: () => { snapshot(); const cells = []; for (let y = 0; y < chart.h; y++) for (let x = 0; x < chart.w; x++) cells.push(chart.cells[y * chart.w + (chart.w - 1 - x)]); chart = { ...chart, cells }; paint(); commit(); } },
           { label: 'Clear', ico: 'eraser', run: () => { snapshot(); chart = { ...chart, cells: chart.cells.map(() => 0) }; paint(); commit(); } },
@@ -578,6 +580,87 @@ function editor(root, id, route) {
     persist.flush();
     document.removeEventListener('keydown', onKey);
   };
+}
+
+/**
+ * A printable chart: row numbers on the working side of every row, column
+ * numbers, bold lines every 10, and a color key with yardage.
+ */
+export function exportChart(chart, meta) {
+  const cell = Math.max(10, Math.min(28, Math.floor(2200 / Math.max(chart.w, chart.h))));
+  const m = { left: 44, right: 44, top: 70, bottom: 40 };
+  const keyRows = Math.ceil(chart.palette.length / 4);
+  const W = chart.w * cell + m.left + m.right;
+  const H = chart.h * cell + m.top + m.bottom + keyRows * 34 + 20;
+  const c = document.createElement('canvas');
+  c.width = W;
+  c.height = H;
+  const ctx = c.getContext('2d');
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, W, H);
+  ctx.fillStyle = '#241c17';
+  ctx.font = "600 26px ui-serif, Georgia, serif";
+  ctx.fillText(meta.name || 'Chart', m.left, 38);
+  ctx.font = '13px system-ui, sans-serif';
+  ctx.fillStyle = '#5a4d44';
+  ctx.fillText(`${(MODES.find((x) => x[0] === meta.mode) || MODES[0])[1]} · ${chart.w} × ${chart.h}${meta.mode === 'c2c' ? ` · first tile ${meta.start.replace('-', ' ')}` : ''}`, m.left, 58);
+  ctx.drawImage(chartImage(chart, cell), m.left, m.top);
+  for (let x = 0; x <= chart.w; x++) {
+    ctx.strokeStyle = (chart.w - x) % 10 === 0 ? 'rgba(0,0,0,0.6)' : 'rgba(0,0,0,0.18)';
+    ctx.lineWidth = (chart.w - x) % 10 === 0 ? 1.5 : 1;
+    ctx.beginPath();
+    ctx.moveTo(m.left + x * cell + 0.5, m.top);
+    ctx.lineTo(m.left + x * cell + 0.5, m.top + chart.h * cell);
+    ctx.stroke();
+  }
+  for (let y = 0; y <= chart.h; y++) {
+    ctx.strokeStyle = (chart.h - y) % 10 === 0 ? 'rgba(0,0,0,0.6)' : 'rgba(0,0,0,0.18)';
+    ctx.lineWidth = (chart.h - y) % 10 === 0 ? 1.5 : 1;
+    ctx.beginPath();
+    ctx.moveTo(m.left, m.top + y * cell + 0.5);
+    ctx.lineTo(m.left + chart.w * cell, m.top + y * cell + 0.5);
+    ctx.stroke();
+  }
+  ctx.fillStyle = '#5a4d44';
+  ctx.font = `600 ${Math.min(12, cell - 2)}px system-ui, sans-serif`;
+  ctx.textBaseline = 'middle';
+  for (let r = 1; r <= chart.h; r++) {
+    const y = m.top + (chart.h - r) * cell + cell / 2;
+    const rightSide = meta.mode !== 'tapestry' || r % 2 === 1;
+    ctx.textAlign = rightSide ? 'left' : 'right';
+    ctx.fillText(String(r), rightSide ? m.left + chart.w * cell + 6 : m.left - 6, y);
+  }
+  ctx.textAlign = 'center';
+  for (let col = 1; col <= chart.w; col++) {
+    if (cell < 14 && col % 5 && col !== 1) continue;
+    ctx.fillText(String(col), m.left + (chart.w - col) * cell + cell / 2, m.top + chart.h * cell + 14);
+  }
+  // Color key.
+  const perSc = yardsPerSc({ weightId: meta.weight });
+  const stats = colorStats(chart, { mode: meta.mode, yardsPerCell: yardsPerCell(meta.mode, perSc) });
+  ctx.textAlign = 'left';
+  ctx.font = '13px system-ui, sans-serif';
+  stats.forEach((s, i) => {
+    const kx = m.left + (i % 4) * 230;
+    const ky = m.top + chart.h * cell + 40 + Math.floor(i / 4) * 34;
+    ctx.fillStyle = s.hex;
+    ctx.fillRect(kx, ky, 22, 22);
+    ctx.strokeStyle = 'rgba(0,0,0,0.3)';
+    ctx.strokeRect(kx + 0.5, ky + 0.5, 21, 21);
+    ctx.fillStyle = '#241c17';
+    ctx.fillText(`${s.letter} · ${colorName(s.hex)} · ${s.cells} · ≈${Math.ceil(s.yards)} yd`, kx + 30, ky + 11);
+  });
+  return c;
+}
+
+function printChart(chart, meta) {
+  const rows = meta.mode === 'c2c' ? c2cRows(chart, { start: meta.start }) : tapestryRows(chart, { mode: meta.mode, handed: store.settings().handed });
+  const img = h('img.print-chart', { src: exportChart(chart, meta).toDataURL('image/png'), alt: meta.name });
+  const doc = h('article.doc',
+    img,
+    h('h2', 'Row by row'),
+    h('div', rows.map((r) => h('div.doc-row', h('span.doc-box'), h('span.doc-text-line', `Row ${r.row} ${r.dir}${r.side && meta.mode !== 'c2c' ? ` (${r.side})` : ''}: `, r.runs.map((x) => `${x.n} ${colorLetter(x.color)}`).join(', ')), h('span.doc-count', meta.mode === 'c2c' ? `${r.tiles} tiles` : '')))));
+  printElement(doc, meta.name);
 }
 
 export { load as loadChart };

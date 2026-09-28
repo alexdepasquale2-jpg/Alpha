@@ -688,14 +688,38 @@ function stitchTally(atoms, tally = {}) {
 // Public API
 // ---------------------------------------------------------------------------
 
+// Graded (multi-size) patterns write the other sizes in brackets after the
+// first: "sc 20 (24, 28)", "Rows 2-18 (20, 22)", "(40 [48, 56] sts)". A dash
+// means the step doesn't apply to that size.
+const SIZE_GROUP = /(\d+)\s*[([]\s*((?:\d+|-|–|—)(?:\s*,\s*(?:\d+|-|–|—))+)\s*[)\]]/g;
+
+export function hasSizes(text) {
+  SIZE_GROUP.lastIndex = 0;
+  const found = SIZE_GROUP.test(String(text || ''));
+  SIZE_GROUP.lastIndex = 0;
+  return found;
+}
+
+/** The text of a line for one size (0 = the first, unbracketed size). */
+export function pickSize(text, k) {
+  if (k === null || k === undefined) return text;
+  return String(text).replace(SIZE_GROUP, (m, first, rest) => {
+    const vals = [first, ...rest.split(',').map((v) => v.trim())];
+    const v = vals[Math.min(k, vals.length - 1)];
+    return /^[-–—]$/.test(v) ? '0' : v;
+  });
+}
+
 /**
  * Parse one line.
  * @param {string} raw
- * @param {{prev?: number|null, terms?: 'US'|'UK', roundish?: boolean}} opts
+ * @param {{prev?: number|null, terms?: 'US'|'UK', roundish?: boolean, size?: number}} opts
  */
 export function parseLine(raw, opts = {}) {
   const prev = opts.prev ?? null;
-  const line = { raw, kind: 'blank', label: null, num: null, numTo: null, side: null, declared: null, mods: [], issues: [], consumes: 0, produces: null, atoms: [], summary: [], tally: {}, uncertain: false };
+  const original = raw;
+  if (opts.size !== undefined && opts.size !== null) raw = pickSize(raw, opts.size);
+  const line = { raw, original, kind: 'blank', label: null, num: null, numTo: null, side: null, declared: null, mods: [], issues: [], consumes: 0, produces: null, atoms: [], summary: [], tally: {}, uncertain: false };
   if (!raw || !raw.trim()) return line;
 
   const f = frame(raw);
@@ -885,7 +909,7 @@ export function parseSection(text, opts = {}) {
   let prev = opts.startCount ?? null;
   let expected = null;
   for (const raw of rawLines) {
-    const line = parseLine(raw, { prev, terms: opts.terms, roundish });
+    const line = parseLine(raw, { prev, terms: opts.terms, roundish, size: opts.size });
     // A heading starts a new part, so numbering restarts. The count carries
     // on: a new piece begins with its own ring or chain anyway, and a
     // "Brim:" heading continues the same fabric.
@@ -935,10 +959,11 @@ function totals(lines) {
  * Parse a whole pattern ({ sections: [{ name, text, pieces }] }) and flatten
  * it into the ordered list of rows the tracker walks through.
  */
-export function parsePattern(pattern) {
+export function parsePattern(pattern, { size = null } = {}) {
   const terms = pattern.terms || 'US';
   const sections = (pattern.sections || []).map((sec) => {
-    const parsed = parseSection(sec.text, { terms });
+    const graded = (pattern.sizes || []).length > 1;
+    const parsed = parseSection(sec.text, { terms, size: graded ? size ?? 0 : null });
     return { ...sec, parsed };
   });
   const steps = [];

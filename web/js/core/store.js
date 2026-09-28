@@ -8,8 +8,8 @@
 import { uid } from './util.js';
 
 const DB_NAME = 'loopwright';
-const DB_VERSION = 1;
-export const STORES = ['projects', 'patterns', 'charts', 'yarns', 'tools', 'palettes', 'journal', 'shopping', 'meta'];
+const DB_VERSION = 2;
+export const STORES = ['projects', 'patterns', 'charts', 'yarns', 'tools', 'palettes', 'journal', 'shopping', 'people', 'meta'];
 const MEDIA = 'media';
 
 const cache = Object.fromEntries(STORES.map((s) => [s, new Map()]));

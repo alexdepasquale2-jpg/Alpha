@@ -148,6 +148,10 @@ function editor(root, id, route) {
     return null;
   }
   let tab = route.query.tab || 'write';
+  // Which size of a graded pattern the checker, diagram and preview show.
+  let size = 0;
+  let previewSize = null;
+  const graded = () => (pat.sizes || []).length > 1;
   const persist = debounce(async () => { pat = await store.put('patterns', pat, { silent: true }); }, 400);
   const update = (patch) => {
     pat = { ...pat, ...patch, updatedAt: Date.now() };
@@ -173,7 +177,7 @@ function editor(root, id, route) {
         btn('Work on it', startProject, { kind: 'primary', ico: 'play' }),
         btn('Share', () => { persist.flush(); go(`/share?kind=pattern&id=${pat.id}`); }, { ico: 'share' }),
         iconBtn('more', 'More', (e) => menu(e.currentTarget, [
-          { label: 'Print or save PDF', ico: 'print', run: () => { persist.flush(); printElement(patternDocument(pat), pat.title); } },
+          { label: 'Print or save PDF', ico: 'print', run: () => { persist.flush(); printElement(patternDocument(pat, { size: previewSize }), pat.title); } },
           { label: 'Download as text', ico: 'download', run: () => download(`${slug(pat.title)}.txt`, asText(pat), 'text/plain') },
           { label: `Convert to ${pat.terms === 'UK' ? 'US' : 'UK'} terms`, ico: 'swap', run: convert },
           { label: 'Duplicate', ico: 'copy', run: async () => { persist.flush(); const c = await store.put('patterns', { ...pat, id: null, title: `${pat.title} (copy)`, sample: false }); go(`/create/patterns/${c.id}`); } },
@@ -216,7 +220,12 @@ function editor(root, id, route) {
     body.replaceChildren();
     if (tab === 'details') body.append(detailsTab());
     else if (tab === 'diagram') body.append(diagramTab());
-    else if (tab === 'preview') body.append(h('div.row', { style: { justifyContent: 'flex-end', marginBottom: '10px' } }, btn('Print or save PDF', () => { persist.flush(); printElement(patternDocument(pat), pat.title); }, { ico: 'print' })), h('div.card.pad-lg', patternDocument(pat)));
+    else if (tab === 'preview') {
+      body.append(h('div.row.wrap', { style: { justifyContent: 'flex-end', marginBottom: '10px' } },
+        graded() ? select([['all', 'All sizes'], ...pat.sizes.map((n, i) => [i, `Size ${n} only`])], previewSize === null ? 'all' : previewSize, (v) => { previewSize = v === 'all' ? null : Number(v); draw(); }, { style: { width: 'auto' }, 'aria-label': 'Size to show' }) : null,
+        btn('Print or save PDF', () => { persist.flush(); printElement(patternDocument(pat, { size: previewSize }), pat.title); }, { ico: 'print' })),
+      h('div.card.pad-lg', patternDocument(pat, { size: previewSize })));
+    }
     else body.append(writeTab());
   }
 
@@ -228,9 +237,18 @@ function editor(root, id, route) {
     const areas = [];
 
     const refresh = debounce(() => {
-      const p = parsed(pat);
+      const p = parsed(pat, graded() ? size : null);
       const est = estimates(pat, p);
-      mount(summary, h('div.check-summary',
+      const perSize = graded() ? pat.sizes.map((n, i) => ({ n, i, errors: parsed(pat, i).errors })) : null;
+      mount(summary,
+        perSize ? h('div.stack.tight', { style: { marginBottom: '10px' } },
+          h('div.muted', { style: { fontSize: '12.5px' } }, 'Checking size'),
+          h('div.chips', perSize.map((x) => h('button.chip', {
+            class: x.i === size ? 'on' : x.errors ? 'err' : 'sage',
+            onClick: () => { size = x.i; refresh(); },
+            title: x.errors ? `${x.errors} count errors` : 'Counts check out',
+          }, x.errors ? icon('alert') : icon('check'), x.n)))) : null,
+        h('div.check-summary',
         h('span.chip', `${p.rows} rows`),
         h('span.chip', `${p.stitches.toLocaleString()} sts`),
         p.errors ? h('span.chip.err', icon('alert'), `${p.errors} error${p.errors === 1 ? '' : 's'}`) : h('span.chip.sage', icon('check'), 'No count errors'),
@@ -394,6 +412,7 @@ function editor(root, id, route) {
             field('Skill level', select([[1, 'Beginner'], [2, 'Easy'], [3, 'Intermediate'], [4, 'Experienced'], [5, 'Expert']], pat.difficulty || 2, (v) => update({ difficulty: Number(v) }))),
             field('Terms', select([['US', 'US terms (sc, hdc, dc)'], ['UK', 'UK terms (dc, htr, tr)']], pat.terms || 'US', (v) => { update({ terms: v }); toast(`Reading the pattern in ${v} terms. Use More → Convert to rewrite the text.`); }), 'How the text is written'),
             field('Finished size', input({ value: pat.size || '', placeholder: 'e.g. 20 × 24 in', onInput: (e) => update({ size: e.target.value }) })),
+            field('Sizes', input({ value: (pat.sizes || []).join(', '), placeholder: 'S, M, L, XL', onInput: (e) => update({ sizes: e.target.value.split(',').map((x) => x.trim()).filter(Boolean) }) }), 'Graded pattern? Write numbers as 20 (24, 28)'),
             field('Tags', input({ value: (pat.tags || []).join(', '), placeholder: 'amigurumi, gift', onInput: (e) => update({ tags: e.target.value.split(',').map((t) => t.trim().toLowerCase()).filter(Boolean) }) })))),
         h('div.card',
           h('h3', 'Yarn, hook and gauge'),
@@ -419,7 +438,7 @@ function editor(root, id, route) {
   // ---- diagram ------------------------------------------------------------
 
   function diagramTab() {
-    const p = parsed(pat);
+    const p = parsed(pat, graded() ? size : null);
     const parts = [];
     for (const [si, sec] of p.sections.entries()) {
       let block = { name: sec.name || `Part ${si + 1}`, lines: [] };

@@ -32,8 +32,9 @@ function gaugeText(g) {
   return `${g.sts} sts${g.rows ? ` × ${g.rows} rows` : ''} = ${g.per || 4} ${g.unit || 'in'}`;
 }
 
-export function patternDocument(pattern, { diagrams = true } = {}) {
-  const p = parsed(pattern);
+export function patternDocument(pattern, { diagrams = true, size = null } = {}) {
+  const graded = (pattern.sizes || []).length > 1;
+  const p = parsed(pattern, graded ? size ?? 0 : null);
   const est = estimates(pattern, p);
   const st = store.settings();
   const meta = [
@@ -44,10 +45,11 @@ export function patternDocument(pattern, { diagrams = true } = {}) {
     ['Gauge', gaugeText(pattern.gauge)],
     ['Finished size', pattern.size],
     ['Terms', pattern.terms === 'UK' ? 'UK' : 'US'],
+    graded ? ['Sizes', size === null ? `${pattern.sizes[0]} (${pattern.sizes.slice(1).join(', ')})` : `${pattern.sizes[size]} only`] : null,
     ['Rows', `${p.rows} rows · ${p.stitches.toLocaleString()} stitches`],
     ['Yarn estimate', `≈ ${yardsText(est.yards)}`],
     ['Time', `≈ ${duration(est.minutes * 60000)} at ${st.speed || 20} sts/min`],
-  ].filter(([, v]) => v);
+  ].filter((x) => x && x[1]);
 
   const abbr = abbreviations(pattern);
   const doc = h('article.doc',
@@ -56,6 +58,7 @@ export function patternDocument(pattern, { diagrams = true } = {}) {
       pattern.designer ? h('p.doc-by', `by ${pattern.designer}`) : null),
     pattern.coverId ? photo(pattern.coverId, { class: 'doc-cover', alt: '' }) : null,
     h('dl.doc-meta', meta.map(([k, v]) => [h('dt', k), h('dd', v)])),
+    graded && size === null ? h('p.doc-note', { style: { marginLeft: 0 } }, `Numbers for larger sizes follow in brackets: ${pattern.sizes[0]} (${pattern.sizes.slice(1).join(', ')}). Where only one number is given it applies to all sizes; a dash means the step doesn’t apply.`) : null,
     pattern.materials ? h('section', h('h2', 'Materials'), h('p.doc-text', pattern.materials)) : null,
     abbr.length ? h('section', h('h2', 'Abbreviations'), h('dl.doc-abbr', abbr.map((a) => [h('dt', a.abbr), h('dd', a.name)]))) : null,
     pattern.notes ? h('section', h('h2', 'Notes'), h('p.doc-text', pattern.notes)) : null,
@@ -67,12 +70,13 @@ export function patternDocument(pattern, { diagrams = true } = {}) {
         lines.map((line) => {
           if (line.kind === 'blank') return null;
           if (line.kind === 'heading') return h('h3.doc-sub', line.label, line.pieces > 1 ? ` (make ${line.pieces})` : '');
-          if (line.kind === 'note') return h('p.doc-note', line.raw.trim());
+          const text = graded && size === null ? line.original.trim() : line.raw.trim();
+          if (line.kind === 'note') return h('p.doc-note', text);
           const count = line.declared ?? line.produces;
           return h('div.doc-row',
             h('span.doc-box', { 'aria-hidden': 'true' }),
-            h('span.doc-text-line', line.raw.trim()),
-            h('span.doc-count', count !== null && count !== undefined && line.kind !== 'chain' ? `(${count})` : ''));
+            h('span.doc-text-line', text),
+            h('span.doc-count', count !== null && count !== undefined && line.kind !== 'chain' && !(graded && size === null) ? `(${count})` : ''));
         }),
         d && d.rows >= 3 ? h('figure.doc-figure', svgFromString(d.svg), h('figcaption', `Symbol chart, first ${d.rows} ${d.mode === 'round' ? 'rounds' : 'rows'} · `, d.legend.map((x, i) => `${i ? ', ' : ''}${x.label} ${x.name.toLowerCase()}`))) : null);
     }),

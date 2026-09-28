@@ -2,7 +2,7 @@
 // or stitch by stitch, keeps counters, times sessions, keeps the screen on,
 // and listens for "next" when your hands are full.
 
-import { h, mount, btn, iconBtn, field, input, numberInput, pageHead, modal, confirmDialog, toast, empty, menu, segmented, toggle } from '../core/dom.js';
+import { h, mount, btn, iconBtn, field, input, numberInput, select, pageHead, modal, confirmDialog, toast, empty, menu, segmented, toggle } from '../core/dom.js';
 import { icon } from '../core/icons.js';
 import * as store from '../core/store.js';
 import { go } from '../core/router.js';
@@ -93,7 +93,8 @@ function stepsFor(p) {
   if (p.patternId) {
     const pat = store.get('patterns', p.patternId);
     if (!pat) return { steps: [], kind: 'none' };
-    return { kind: 'pattern', steps: parsed(pat).steps, terms: pat.terms || 'US' };
+    const sizes = (pat.sizes || []).length > 1 ? pat.sizes : null;
+    return { kind: 'pattern', steps: parsed(pat, sizes ? p.sizeIndex ?? 0 : null).steps, terms: pat.terms || 'US', sizes };
   }
   return { steps: [], kind: 'none' };
 }
@@ -184,7 +185,12 @@ function work(root, id) {
   const cur = () => steps[pos.step] || null;
   const atoms = () => cur()?.atoms || [];
 
+  // Remember the last time a stitch or row was counted, so a timer left
+  // running can be trimmed back to when you actually stopped.
+  const touch = () => { p.lastTap = Date.now(); };
+
   function advanceRow(dir = 1) {
+    touch();
     const before = pos.step;
     pos.step = clamp(pos.step + dir, 0, steps.length);
     pos.atom = 0;
@@ -218,6 +224,7 @@ function work(root, id) {
       return null;
     }
     pos.atom = next;
+    touch();
     if (settings.haptics) vibrate(8);
     save();
     drawNow();
@@ -535,6 +542,11 @@ function work(root, id) {
     h('div.row.between.wrap', { style: { marginBottom: '14px' } },
       h('div', backLink(p.quick ? '#/build' : `#/plan/projects/${p.id}`, p.quick ? 'Build' : 'Project'), h('h1', { style: { fontSize: '24px' } }, p.name)),
       h('div.row.wrap',
+        src.sizes ? select(src.sizes.map((n, i) => [i, `Size ${n}`]), p.sizeIndex ?? 0, async (v) => {
+          p = { ...p, sizeIndex: Number(v) };
+          await flush();
+          go(`/build/${p.id}?size=${v}`, { replace: true });
+        }, { style: { width: 'auto' }, 'aria-label': 'Size you are making' }) : null,
         h('div.card.tight.row', { style: { padding: '8px 12px' } }, icon('timer'), timerFace, timerBtn),
         iconBtn('maximize', 'Focus mode', () => { focus = !focus; document.body.classList.toggle('focus-mode', focus); }),
         iconBtn('more', 'More', (e) => menu(e.currentTarget, [
@@ -570,6 +582,28 @@ function work(root, id) {
   }
   draw();
   drawTimer();
+  if (running() && sessionMs() > 45 * 60000) {
+    const last = Math.max(p.lastTap || 0, p.timer.start);
+    const idle = Date.now() - last;
+    if (idle > 45 * 60000) {
+      modal({
+        title: 'Still stitching?',
+        body: h('p', `The timer has been running for ${duration(sessionMs())}. Your last counted stitch or row was ${duration(idle)} ago.`),
+        actions: [
+          { label: 'Keep it all', kind: 'ghost', value: 'keep' },
+          { label: `Log ${duration(last - p.timer.start || 60000)} and stop`, kind: 'primary', value: 'trim' },
+        ],
+      }).then((v) => {
+        if (v !== 'trim') return;
+        const start = p.timer.start;
+        const end = Math.max(start + 60000, last);
+        p = { ...p, timer: null, timeMs: (p.timeMs || 0) + (end - start), sessions: [...(p.sessions || []), { start, end }] };
+        flush();
+        drawTimer();
+        toast(`Logged ${duration(end - start)}.`);
+      });
+    }
+  }
   tick = setInterval(() => { if (running()) timerFace.textContent = clock(sessionMs()); }, 1000);
   if (!running() && src.kind !== 'none' && pos.step === 0 && !(p.sessions || []).length) {
     // First visit: nudge the timer on rather than start it silently.

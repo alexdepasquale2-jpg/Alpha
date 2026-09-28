@@ -154,12 +154,20 @@ img { max-width: 100%; display: block; }
 .sidebar {
   position: sticky; top: 0; height: 100vh; height: 100dvh;
   display: flex; flex-direction: column; gap: 4px;
-  padding: 18px 12px; border-right: 1px solid var(--line); background: var(--bg-2);
+  padding: 18px 12px; border-right: 1px solid var(--line); background: var(--bg-2); overflow-y: auto;
 }
 .brand { display: flex; align-items: center; gap: 10px; padding: 4px 10px 16px; color: var(--ink); text-decoration: none; }
 .brand-mark { width: 34px; height: 34px; flex: none; }
 .brand-name { font-family: var(--serif); font-size: 22px; font-weight: 600; letter-spacing: -0.02em; }
 .brand-tag { display: block; font: 11px/1.2 var(--sans); color: var(--ink-3); letter-spacing: 0.02em; }
+.search-trigger {
+  display: flex; align-items: center; gap: 10px; margin: 0 2px 12px; padding: 8px 12px; border: 1px solid var(--line-2); border-radius: 999px;
+  background: var(--surface); color: var(--ink-3); font: 500 14px var(--sans); cursor: pointer; text-align: left;
+}
+.search-trigger span { flex: 1; }
+.search-trigger .ico { width: 17px; height: 17px; }
+.search-trigger kbd { font-size: 11px; color: var(--ink-3); }
+.search-trigger:hover { border-color: var(--ink-3); color: var(--ink-2); }
 .nav { display: flex; flex-direction: column; gap: 2px; }
 .nav a {
   display: flex; align-items: center; gap: 12px; padding: 9px 12px; border-radius: var(--r-2);
