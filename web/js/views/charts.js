@@ -1,7 +1,7 @@
 // Colorwork chart designer: paint a grid, import a photo, and get written
 // row-by-row (tapestry) or diagonal (C2C) instructions with yarn per color.
 
-import { h, mount, btn, iconBtn, field, numberInput, select, pageHead, subnav, modal, confirmDialog, toast, empty, menu, toggle } from '../core/dom.js';
+import { h, mount, btn, iconBtn, field, input, numberInput, select, pageHead, subnav, modal, confirmDialog, toast, empty, menu, toggle } from '../core/dom.js';
 import { icon } from '../core/icons.js';
 import * as store from '../core/store.js';
 import { go } from '../core/router.js';
@@ -11,6 +11,7 @@ import {
   lineCells, packCells, unpackCells,
 } from '../crochet/chart.js';
 import { colorLetter } from '../crochet/generators.js';
+import { textBitmap } from '../crochet/font.js';
 import { inkFor, nearestTo, harmony, colorName } from '../crochet/color.js';
 import { YARN_WEIGHTS, yardsPerSc } from '../crochet/calc.js';
 import { backLink, yardsText, len, yarnName } from './common.js';
@@ -225,11 +226,32 @@ function editor(root, id, route) {
   };
 
   let drag = null;
+  // Text waiting to be stamped: { cells, w, h, color }.
+  let stamp = null;
+  const stampCells = (at) => {
+    const cells = chart.cells.slice();
+    for (const [dx, dy] of stamp.cells) {
+      const x = at[0] + dx;
+      const y = at[1] + dy;
+      if (x >= 0 && y >= 0 && x < chart.w && y < chart.h) cells[y * chart.w + x] = stamp.color;
+    }
+    return cells;
+  };
   canvas.addEventListener('pointerdown', (e) => {
     if (tool === 'hand') return;
     const at = cellAt(e);
     if (!at) return;
     e.preventDefault();
+    if (tool === 'stamp' && stamp) {
+      snapshot();
+      chart = { ...chart, cells: stampCells(at) };
+      stamp = null;
+      tool = 'pencil';
+      drawTools();
+      paint();
+      commit();
+      return;
+    }
     canvas.setPointerCapture(e.pointerId);
     const c = tool === 'eraser' ? 0 : color;
     if (tool === 'pipette') {
@@ -253,6 +275,11 @@ function editor(root, id, route) {
     }
   });
   canvas.addEventListener('pointermove', (e) => {
+    if (tool === 'stamp' && stamp) {
+      const at = cellAt(e);
+      if (at) paint(stampCells(at));
+      return;
+    }
     if (!drag) return;
     const at = cellAt(e);
     if (!at) return;
@@ -305,7 +332,8 @@ function editor(root, id, route) {
       iconBtn('zoom-in', 'Zoom in (+)', () => { zoom = Math.min(40, zoom + 2); paint(); }),
       h('span.sep'),
       btn(`${chart.w} × ${chart.h}`, resize, { small: true, kind: 'ghost', ico: 'maximize', title: 'Grid size' }),
-      btn('Photo', () => importPhoto(), { small: true, kind: 'ghost', ico: 'image', title: 'Import a photo' }));
+      btn('Photo', () => importPhoto(), { small: true, kind: 'ghost', ico: 'image', title: 'Import a photo' }),
+      btn('Text', addText, { small: true, kind: tool === 'stamp' ? 'on' : 'ghost', ico: 'text', title: 'Letters and numbers' }));
   }
 
   const palEl = h('div.pal');
@@ -359,6 +387,30 @@ function editor(root, id, route) {
     paint();
     drawPalette();
     commit();
+  }
+
+  // Names and dates for C2C blankets: type, then tap where it goes.
+  async function addText() {
+    let text = '';
+    let scale = 1;
+    const info = h('div.muted', { style: { fontSize: '13px' } }, 'Type something to see its size.');
+    const upd = () => {
+      const b = textBitmap(text, scale);
+      info.textContent = text.trim() ? `${b.w} × ${b.h} ${meta.mode === 'c2c' ? 'tiles' : 'stitches'} in color ${colorLetter(color)}${b.w > chart.w ? ` — wider than the chart (${chart.w})` : ''}` : 'Type something to see its size.';
+    };
+    const res = await modal({
+      title: 'Add text',
+      body: h('div.stack',
+        field('Text', input({ maxlength: 40, placeholder: 'e.g. MIRA 2026', onInput: (e) => { text = e.target.value; upd(); } }), 'Capital letters, numbers, ! ? . - & and <3 for a heart'),
+        field('Size', select([[1, 'Small (7 rows tall)'], [2, 'Large (14 rows tall)']], scale, (v) => { scale = Number(v); upd(); })),
+        info),
+      actions: [{ label: 'Cancel', kind: 'ghost', value: null }, { label: 'Place it', kind: 'primary', value: 'ok' }],
+    });
+    if (res !== 'ok' || !text.trim()) return;
+    stamp = { ...textBitmap(text, scale), color: tool === 'eraser' ? 0 : color };
+    tool = 'stamp';
+    drawTools();
+    toast('Tap the chart where the top-left corner of the text should go.');
   }
 
   async function resize() {

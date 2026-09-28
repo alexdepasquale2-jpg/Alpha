@@ -12,7 +12,7 @@ export const KINDS = {
   palette: 'Palette',
 };
 
-const LOCAL_FIELDS = ['id', 'createdAt', 'updatedAt', 'coverId', 'photoIds'];
+const LOCAL_FIELDS = ['id', 'createdAt', 'updatedAt', 'coverId', 'photoIds', 'history'];
 
 export function envelope(kind, data) {
   const clean = { ...data };

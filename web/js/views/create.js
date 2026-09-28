@@ -6,7 +6,7 @@ import { icon } from '../core/icons.js';
 import * as store from '../core/store.js';
 import { go } from '../core/router.js';
 import { debounce, download, slug, duration, uid } from '../core/util.js';
-import { parseSection, renumber, addCounts } from '../crochet/parser.js';
+import { parseSection, parsePattern, renumber, addCounts } from '../crochet/parser.js';
 import { convertTerms, detectTerms } from '../crochet/terms.js';
 import { distribute, YARN_WEIGHTS, HOOKS } from '../crochet/calc.js';
 import { diagram } from '../crochet/diagram.js';
@@ -159,10 +159,50 @@ function editor(root, id, route) {
   let previewSize = null;
   const graded = () => (pat.sizes || []).length > 1;
   const persist = debounce(async () => { pat = await store.put('patterns', pat, { silent: true }); }, 400);
+  // Version history: the pattern as it was before this editing session,
+  // plus a checkpoint every ten minutes of a long session.
+  const snapOf = (x) => ({ at: Date.now(), title: x.title, terms: x.terms, sizes: x.sizes || [], sections: x.sections, notes: x.notes || '', materials: x.materials || '' });
+  let sessionSaved = false;
+  let lastCheckpoint = Date.now();
   const update = (patch) => {
+    if (!sessionSaved || Date.now() - lastCheckpoint > 10 * 60000) {
+      pat = { ...pat, history: [snapOf(pat), ...(pat.history || [])].slice(0, 25) };
+      sessionSaved = true;
+      lastCheckpoint = Date.now();
+    }
     pat = { ...pat, ...patch, updatedAt: Date.now() };
     persist();
   };
+
+  async function showHistory() {
+    persist.flush();
+    const list = pat.history || [];
+    if (!list.length) {
+      toast('No earlier versions yet. They’re saved as you edit.');
+      return;
+    }
+    const pick = await modal({
+      title: 'Version history',
+      wide: true,
+      body: (close) => h('div.list', list.map((v, i) => {
+        const pp = parsePattern({ ...pat, ...v });
+        return h('div.list-row',
+          icon('clock'),
+          h('div.grow', h('div.title', new Date(v.at).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })),
+            h('div.meta', `${v.title} · ${pp.rows} rows · ${v.sections.length} part${v.sections.length === 1 ? '' : 's'}${pp.errors ? ` · ${pp.errors} count errors` : ''}`)),
+          btn('Restore', () => close(i), { small: true }));
+      })),
+    });
+    if (pick === undefined || pick === null) return;
+    const v = list[pick];
+    if (!(await confirmDialog('Restore this version?', 'What you have now is kept in the history, so you can come back to it.', { ok: 'Restore' }))) return;
+    sessionSaved = false;
+    update({ title: v.title, terms: v.terms, sizes: v.sizes, sections: v.sections, notes: v.notes, materials: v.materials });
+    persist.flush();
+    title.value = pat.title;
+    draw();
+    toast('Version restored.');
+  }
 
   const title = h('input', {
     value: pat.title, 'aria-label': 'Pattern title', maxlength: 140,
@@ -186,7 +226,8 @@ function editor(root, id, route) {
           { label: 'Print or save PDF', ico: 'print', run: () => { persist.flush(); printElement(patternDocument(pat, { size: previewSize }), pat.title); } },
           { label: 'Download as text', ico: 'download', run: () => download(`${slug(pat.title)}.txt`, asText(pat), 'text/plain') },
           { label: `Convert to ${pat.terms === 'UK' ? 'US' : 'UK'} terms`, ico: 'swap', run: convert },
-          { label: 'Duplicate', ico: 'copy', run: async () => { persist.flush(); const c = await store.put('patterns', { ...pat, id: null, title: `${pat.title} (copy)`, sample: false }); go(`/create/patterns/${c.id}`); } },
+          { label: 'Version history', ico: 'clock', run: showHistory },
+          { label: 'Duplicate', ico: 'copy', run: async () => { persist.flush(); const c = await store.put('patterns', { ...pat, id: null, title: `${pat.title} (copy)`, sample: false, history: [] }); go(`/create/patterns/${c.id}`); } },
           '-',
           { label: 'Delete pattern', ico: 'trash', danger: true, run: async () => {
             if (!(await confirmDialog('Delete this pattern?', `“${pat.title}” will be removed. Projects using it keep their progress but lose the row list.`, { ok: 'Delete', danger: true }))) return;

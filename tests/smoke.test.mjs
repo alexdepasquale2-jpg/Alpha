@@ -476,6 +476,36 @@ await step('settings: dark theme and UK terms', async () => {
   await page.click('.segmented button:has-text("Match device")');
 });
 
+await step('create: text on a chart, and pattern version history', async () => {
+  await go(page, '#/create/charts');
+  await page.click('button:has-text("New chart")');
+  await page.waitForSelector('.chart-stage canvas');
+  const before = await page.locator('.instructions').innerText();
+  await page.click('button[title="Letters and numbers"]');
+  await page.fill('dialog input[placeholder^="e.g. MIRA"]', 'HI');
+  await page.click('dialog button:has-text("Place it")');
+  const box = await page.locator('.chart-stage canvas').boundingBox();
+  await page.mouse.click(box.x + 60, box.y + 60);
+  await page.waitForTimeout(200);
+  assert.notEqual(await page.locator('.instructions').innerText(), before);
+
+  await go(page, '#/create/patterns');
+  await page.click('.pattern-card:has-text("Smoke Ball")');
+  await page.waitForSelector('.rows-editor textarea');
+  const current = await page.locator('.rows-editor textarea').inputValue();
+  await page.click('button[aria-label="More"]');
+  await page.click('.popmenu button:has-text("Version history")');
+  await page.locator('dialog button:has-text("Restore")').last().click();
+  await page.click('dialog button:has-text("Restore")');
+  await page.waitForSelector('.toast:has-text("Version restored")');
+  assert.equal(await page.locator('.rows-editor textarea').inputValue(), '');
+  await page.click('button[aria-label="More"]');
+  await page.click('.popmenu button:has-text("Version history")');
+  await page.locator('dialog button:has-text("Restore")').first().click();
+  await page.click('dialog button:has-text("Restore")');
+  await page.waitForFunction((t) => document.querySelector('.rows-editor textarea').value === t, current);
+});
+
 await step('phone layout: tab bar, no sideways scrolling on any page', async () => {
   const phone = await newPage({ width: 375, height: 812 }, { isMobile: true, hasTouch: true });
   await phone.page.goto(`${base}/`);

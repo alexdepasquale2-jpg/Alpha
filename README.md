@@ -79,6 +79,9 @@ size, deadlines, a stitch of the day.
 - Graded patterns: name your sizes and write numbers as `sc 20 (24, 28)`. Every size
   is checked on its own, a project follows just its size, and you can print all sizes
   or one.
+- Tech-editing tools: renumber rows after inserting some, and write in the stitch
+  count on every row that's missing one. Version history keeps the pattern as it was
+  before each editing session, restorable in one tap.
 - Symbol diagrams drawn from the written instructions, in the round or flat.
 - A formatted preview that prints or saves as PDF, with checkboxes for every row.
 - Paste a pattern in and it's split into parts, its terms are detected, and every count
@@ -87,12 +90,15 @@ size, deadlines, a stitch of the day.
   tapestry (flat or in the round) and corner-to-corner instructions with yarn per color,
   bobbin counts and finished size. **Photo to chart** picks colors (or snaps to your stash
   yarn), optionally dithers, and cleans up single-stitch "confetti". Charts export as a
-  numbered image with a color key, or print together with their instructions.
+  numbered image with a color key, or print together with their instructions. A text
+  tool stamps names and dates in a pixel font, for C2C name blankets.
 - An amigurumi shape builder: ball, egg, oval, tube, cone, or a freeform silhouette you
   drag into shape. It writes the rounds for your gauge with staggered increases, estimates
   yarn and stuffing, and saves them as a pattern.
 - A stitch dictionary: 30 stitches with standard symbols, US and UK names, step-by-step
-  instructions and tips, plus classic stitch patterns with their multiples.
+  instructions and tips, plus classic stitch patterns with their multiples and the core
+  stitch names in Spanish, French, German, Dutch, Italian and Portuguese for reading
+  patterns from abroad.
 
 **Post.** A community board for everyone on the server: photos, hashtags, likes,
 comments, and attached patterns or charts that others can save with one tap. There
@@ -107,7 +113,9 @@ patterns a print/PDF version. Also here: full backup and restore, including phot
 
 **Build.** A tracker built for hands full of yarn. Row by row or stitch by stitch
 ("inc: 2 sc in the next stitch, 13 of 24"), with a repeat counter for bracketed
-repeats, notes that pop up at the right row, and a celebration when a part is done.
+repeats, notes that pop up at the right row (the pattern's and your own), and a
+celebration when a part is done. It measures your real stitches per minute as you go
+and offers to use that for time estimates.
 Counters can follow the rows or count up to a number and roll over. There's a session
 timer (it notices if you walked away and left it running), keep-screen-on, vibration,
 and voice commands ("next", "back", "pause"). Charts can be followed row by row too,

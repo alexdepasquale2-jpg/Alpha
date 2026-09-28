@@ -93,6 +93,7 @@ const P = {
   home: 'M4 11.5 12 4.5l8 7M6 10v10h12V10',
   counter: 'M5 4.5h14v15H5zM9 8.5v7M12 8.5v7M15 8.5v7M8 14l8-4',
   stitch: 'M6 6l12 12M18 6 6 18',
+  text: 'M5 7V5h14v2M12 5v14M9 19h6',
 };
 
 export function icon(name, cls = '') {

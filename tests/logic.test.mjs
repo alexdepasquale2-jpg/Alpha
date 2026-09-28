@@ -9,6 +9,7 @@ import { amigurumi, hat, granny, stripes, stripesPattern, blanketLayout, SHAPES 
 import { tapestryRows, c2cRows, colorStats, cleanConfetti, imageToChart, floodFill, packCells, unpackCells, blankChart } from '../web/js/crochet/chart.js';
 import { hexDelta, harmony, HARMONIES, kmeans, colorName, colorFamily, valueGrey, inkFor } from '../web/js/crochet/color.js';
 import { qrEncode } from '../web/js/core/qr.js';
+import { textBitmap, FONT_CHARS } from '../web/js/crochet/font.js';
 import { STITCHES, STITCH_PATTERNS, stitchInfo } from '../web/js/crochet/stitches.js';
 
 const counts = (text, prev = null) => {
@@ -332,6 +333,20 @@ test('color tools', () => {
   assert.equal(colorFamily('#1e3a5f'), 'blue');
   assert.match(valueGrey('#b7410e'), /^#([0-9a-f]{2})\1\1$/);
   assert.equal(inkFor('#ffffff'), '#1f1a17');
+});
+
+test('pixel font for chart text', () => {
+  const hi = textBitmap('Hi');
+  assert.equal(hi.w, 11);
+  assert.equal(hi.h, 7);
+  assert.equal(hi.cells.length, 17 + 11);
+  const big = textBitmap('I', 2);
+  assert.equal(big.h, 14);
+  assert.equal(big.cells.length, 11 * 4);
+  assert.equal(textBitmap('A B').w, 5 + 1 + 3 + 5);
+  assert.ok(FONT_CHARS.includes('♥'));
+  assert.equal(textBitmap('<3').cells.length, textBitmap('♥').cells.length);
+  for (const ch of FONT_CHARS) assert.ok(textBitmap(ch).cells.length > 0, ch);
 });
 
 test('QR codes have the right structure', () => {
