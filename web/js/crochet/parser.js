@@ -92,6 +92,8 @@ function normalise(body) {
     }
     re.lastIndex = 0;
   }
+  // Sentence punctuation ("inc x6.") isn't part of a stitch; decimals are kept.
+  s = s.replace(/\.(?!\d)/g, ' ');
   for (const [re, to] of REWRITES) s = s.replace(re, to);
   s = s.replace(/\b(once|twice|thrice|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve)\b/g, (w) => NUMBER_WORDS[w]);
   // "6sc" -> "6 sc", "sc6" -> "sc 6", but keep "sc2tog" and "fromhook2" whole.
@@ -1045,4 +1047,57 @@ export function usedStitches(pattern) {
     }
   }
   return [...ids];
+}
+
+// ---------------------------------------------------------------------------
+// Tech-editing helpers
+// ---------------------------------------------------------------------------
+
+/**
+ * Renumber rows and rounds so they run on without gaps or repeats. Each part
+ * (split by headings) keeps the number its first row starts at; ranges keep
+ * their length. Returns the new text.
+ */
+export function renumber(text) {
+  let expected = null;
+  return String(text).split('\n').map((raw) => {
+    const line = parseLine(raw);
+    if (line.kind === 'heading') {
+      expected = null;
+      return raw;
+    }
+    const m = LABEL_RE.exec(raw) || BARE_LABEL_RE.exec(raw);
+    if (!m || line.num === null) return raw;
+    const span = line.numTo - line.num;
+    const start = expected ?? line.num;
+    expected = start + span + 1;
+    if (start === line.num) return raw;
+    let k = 0;
+    const label = m[0].replace(/\d+/g, (d) => {
+      k++;
+      if (k === 1) return String(start);
+      if (k === 2 && span > 0) return String(start + span);
+      return d;
+    });
+    return label + raw.slice(m[0].length);
+  }).join('\n');
+}
+
+/**
+ * Write the stitch count at the end of every row that doesn't have one,
+ * where the checker is sure of it. Returns { text, added }.
+ */
+export function addCounts(text, opts = {}) {
+  const parsed = parseSection(text, opts);
+  let added = 0;
+  const out = String(text).split('\n').map((raw, i) => {
+    const line = parsed.lines[i];
+    if (!line || (line.kind !== 'row' && line.kind !== 'round')) return raw;
+    if (line.declared !== null || line.totals || line.uncertain || !line.produces) return raw;
+    // Anything the checker has doubts about is left for a human to decide.
+    if (line.issues.some((x) => x.level === 'error' || x.level === 'warn')) return raw;
+    added++;
+    return `${raw.replace(/[\s.]+$/, '')} (${line.produces})`;
+  });
+  return { text: out.join('\n'), added };
 }

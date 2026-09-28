@@ -2,7 +2,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { parseLine, parseSection, parsePattern, usedStitches, pickSize, hasSizes } from '../web/js/crochet/parser.js';
+import { parseLine, parseSection, parsePattern, usedStitches, pickSize, hasSizes, renumber, addCounts } from '../web/js/crochet/parser.js';
 import { usToUk, ukToUs, detectTerms } from '../web/js/crochet/terms.js';
 import { distribute, compareGauge, startingChain, skeinsNeeded, substitute, hookFor, hookLabel, yardageFromSwatch, quickYardage, pricing, flatCircle, yardsPerSc } from '../web/js/crochet/calc.js';
 import { amigurumi, hat, granny, stripes, stripesPattern, blanketLayout, SHAPES } from '../web/js/crochet/generators.js';
@@ -36,6 +36,8 @@ test('reads the common ways of writing an amigurumi round', () => {
     ['Rnd 12: sc2tog x6 (6)', 12, 12, 6],
     ['Rnd 12: BLO sc around (27)', 27, 27, 27],
     ['Round 14: sc around, sl st to first sc to join. (27)', 27, 27, 27],
+    ['Rnd 2: inc x6. (12)', 6, 6, 12],
+    ['Rnd 3: Sc 1, inc. Repeat 6 times. (18)', 12, 12, 18],
   ];
   for (const [text, prev, c, p] of cases) {
     const r = counts(text, prev);
@@ -126,6 +128,16 @@ test('graded patterns are checked one size at a time', () => {
   const pat = { sizes: ['S', 'M', 'L'], sections: [{ text: 'Ch 21 (25, 29).\nRow 1: sc in 2nd ch from hook and in each ch across, turn (20 (24, 28))\nRows 2-10 (12, 14): ch 1, sc across, turn (20 (24, 28))\nRow 11 (13, 15): ch 1, sc 9 (11, 13), sc2tog, sc 9 (11, 13), turn (19 (23, 26))' }] };
   assert.deepEqual([0, 1, 2].map((k) => parsePattern(pat, { size: k }).errors), [0, 0, 1]);
   assert.deepEqual([0, 1, 2].map((k) => parsePattern(pat, { size: k }).rows), [11, 13, 15]);
+});
+
+test('tech editing: renumber and add counts', () => {
+  const messy = 'Rnd 1: 6 sc in MR (6)\nRnd 2: inc x6 (12)\nRnd 2: (sc, inc) x6 (18)\nRnds 5-8: sc around (18)\nStuff.\nRnd 12: dec x9 (9)\nArms:\nRnd 3: 5 sc in MR (5)\nRnd 7: sc around (5)';
+  assert.equal(renumber(messy), 'Rnd 1: 6 sc in MR (6)\nRnd 2: inc x6 (12)\nRnd 3: (sc, inc) x6 (18)\nRnds 4-7: sc around (18)\nStuff.\nRnd 8: dec x9 (9)\nArms:\nRnd 3: 5 sc in MR (5)\nRnd 4: sc around (5)');
+  assert.equal(parseSection(renumber(messy)).warnings, 0);
+  const bare = 'Rnd 1: 6 sc in MR\nRnd 2: inc x6.\nRnd 3: (sc, inc) x6 (18)\nRnd 4: sc 2, blah blah';
+  const r = addCounts(bare);
+  assert.equal(r.added, 2);
+  assert.equal(r.text, 'Rnd 1: 6 sc in MR (6)\nRnd 2: inc x6 (12)\nRnd 3: (sc, inc) x6 (18)\nRnd 4: sc 2, blah blah');
 });
 
 test('UK patterns are read in UK terms', () => {

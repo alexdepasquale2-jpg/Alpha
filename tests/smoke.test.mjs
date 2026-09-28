@@ -94,6 +94,7 @@ await step('studio shows sample content and remembers a name', async () => {
   await page.waitForSelector('.hero h1:has-text("Robin")');
   assert.ok(await page.isVisible('text=Pocket Whale for Mira'));
   assert.ok(await page.isVisible('.presence .dot.on'));
+  await page.waitForSelector('svg.bars path.bar');
 });
 
 await step('plan: create a project and edit it', async () => {

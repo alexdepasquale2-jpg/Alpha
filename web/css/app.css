@@ -460,6 +460,22 @@ dialog.modal::backdrop { background: rgba(24, 17, 13, 0.45); backdrop-filter: bl
 .quick a span { font-weight: 400; color: var(--ink-3); font-size: 12.5px; }
 .quick a:hover { border-color: var(--line-2); box-shadow: var(--shadow-2); }
 
+/* ---------------------------------------------------------------- charts */
+:root { --chart-1: #b4481f; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme='light']) { --chart-1: #d86e40; } }
+:root[data-theme='dark'] { --chart-1: #d86e40; }
+.chart-wrap { position: relative; }
+.chart-wrap { min-height: 150px; }
+.bars { display: block; overflow: visible; }
+.bars .bar { fill: var(--chart-1); }
+.bars .grid { stroke: var(--line); stroke-width: 1; }
+.bars .base { stroke: var(--line-2); stroke-width: 1; }
+.bars .axis { font: 500 11px var(--sans); fill: var(--ink-3); }
+.bars .cap { font: 600 12px var(--sans); fill: var(--ink); }
+.bars .hit { fill: transparent; cursor: default; outline: none; }
+.bars .hit:hover, .bars .hit:focus-visible { fill: color-mix(in srgb, var(--ink) 5%, transparent); }
+.chart-tip { position: absolute; transform: translate(-50%, calc(-100% - 8px)); padding: 5px 9px; border-radius: 8px; background: var(--ink); color: var(--bg); font: 600 12.5px var(--sans); white-space: nowrap; pointer-events: none; }
+
 /* ---------------------------------------------------------------- projects board */
 .board { display: grid; grid-template-columns: repeat(5, minmax(172px, 1fr)); gap: 12px; overflow-x: auto; padding-bottom: 8px; align-items: start; }
 .board-col { background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--r-3); padding: 10px; min-height: 160px; display: flex; flex-direction: column; gap: 8px; }

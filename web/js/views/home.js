@@ -1,6 +1,6 @@
 // Studio: today at a glance.
 
-import { h, mount, btn, stat, input, toast } from '../core/dom.js';
+import { h, mount, btn, stat, input, toast, s as svgEl } from '../core/dom.js';
 import { icon } from '../core/icons.js';
 import * as store from '../core/store.js';
 import { go } from '../core/router.js';
@@ -62,6 +62,7 @@ export function render(root) {
         stat('This week', duration(weekMs), 'of stitching'),
         stat('Stash', yardsText(stashYards), `${store.all('yarns').length} yarns`),
         stat('Finished', String(finished), `in ${new Date().getFullYear()}`)),
+      hoursChart(projects),
       h('div.cols', { style: { marginTop: '8px' } },
         h('div',
           h('div.section-title', h('h2', 'Start something'), null),
@@ -89,6 +90,84 @@ export function render(root) {
             h('p.soft', { style: { marginTop: '10px', fontSize: '14px' } }, stitch.tip)),
           communityBox())));
   };
+
+  // Time stitched per week (rolling 7-day windows, so the last bar matches
+  // the "This week" stat). One series: no legend, the title names it; the
+  // latest week carries the only direct label. Drawn at the card's real width
+  // so text stays at its true size.
+  function hoursChart(projects) {
+    const W = 7 * 86400000;
+    const now = Date.now();
+    const weeks = Array.from({ length: 8 }, (_, i) => ({ start: now - (8 - i) * W, ms: 0 }));
+    for (const p of projects) {
+      for (const x of p.sessions || []) {
+        for (const w of weeks) {
+          const overlap = Math.min(x.end, w.start + W) - Math.max(x.start, w.start);
+          if (overlap > 0) w.ms += overlap;
+        }
+      }
+    }
+    if (!weeks.some((w) => w.ms)) return null;
+    const label = (t) => new Date(t).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+    const wrap = h('div.chart-wrap');
+    const tip = h('div.chart-tip', { role: 'status', hidden: true });
+
+    const draw = (VW) => {
+      const VH = 150;
+      const maxH = Math.max(...weeks.map((w) => w.ms / 3600000));
+      const top = maxH <= 1 ? 1 : maxH <= 2 ? 2 : Math.ceil(maxH / 2) * 2;
+      const pad = { l: 30, r: 6, t: 22, b: 24 };
+      const band = (VW - pad.l - pad.r) / weeks.length;
+      const bw = Math.min(24, band * 0.55);
+      const y = (hrs) => pad.t + (VH - pad.t - pad.b) * (1 - hrs / top);
+      const every = band < 56 ? 2 : 1;
+      const svg = svgEl('svg', { viewBox: `0 0 ${VW} ${VH}`, width: VW, height: VH, class: 'bars', role: 'img', 'aria-label': `Hours stitched per week for the last 8 weeks. Last 7 days: ${duration(weeks[7].ms)}.` },
+        svgEl('line', { x1: pad.l, x2: VW - pad.r, y1: y(top), y2: y(top), class: 'grid' }),
+        svgEl('text', { x: pad.l - 6, y: y(top) + 4, class: 'axis', 'text-anchor': 'end' }, `${top}h`),
+        svgEl('line', { x1: pad.l, x2: VW - pad.r, y1: y(0), y2: y(0), class: 'base' }),
+        svgEl('text', { x: pad.l - 6, y: y(0) + 4, class: 'axis', 'text-anchor': 'end' }, '0'),
+        ...weeks.flatMap((w, i) => {
+          const hrs = w.ms / 3600000;
+          const x = pad.l + i * band + (band - bw) / 2;
+          const y0 = y(0);
+          const y1 = y(hrs);
+          const hgt = y0 - y1;
+          const r = Math.min(4, hgt, bw / 2);
+          const d = hgt > 0.5 ? `M${x} ${y0}V${y1 + r}Q${x} ${y1} ${x + r} ${y1}H${x + bw - r}Q${x + bw} ${y1} ${x + bw} ${y1 + r}V${y0}Z` : '';
+          const name = i === 7 ? 'Last 7 days' : `Week from ${label(w.start)}`;
+          const hit = svgEl('rect', { x: pad.l + i * band, y: pad.t, width: band, height: VH - pad.t - pad.b, class: 'hit', tabindex: 0, 'aria-label': `${name}: ${duration(w.ms)}` });
+          const show = () => {
+            tip.hidden = false;
+            tip.textContent = `${name}: ${duration(w.ms)}`;
+            tip.style.left = `${x + bw / 2}px`;
+            tip.style.top = `${Math.min(y1, y0 - 2)}px`;
+          };
+          hit.addEventListener('pointerenter', show);
+          hit.addEventListener('focus', show);
+          hit.addEventListener('pointerleave', () => { tip.hidden = true; });
+          hit.addEventListener('blur', () => { tip.hidden = true; });
+          return [
+            d ? svgEl('path', { d, class: 'bar' }) : null,
+            i === 7 && d ? svgEl('text', { x: x + bw / 2, y: y1 - 7, class: 'cap', 'text-anchor': 'middle' }, duration(w.ms)) : null,
+            (7 - i) % every === 0 ? svgEl('text', { x: x + bw / 2, y: VH - 6, class: 'axis', 'text-anchor': 'middle' }, i === 7 ? 'Last 7 days' : label(w.start)) : null,
+            hit,
+          ];
+        }));
+      mount(wrap, svg, tip);
+    };
+    const ro = new ResizeObserver((entries) => {
+      const width = Math.round(entries[0].contentRect.width);
+      if (width > 0 && width !== wrap.dataset.w) {
+        wrap.dataset.w = width;
+        draw(width);
+      }
+    });
+    ro.observe(wrap);
+    return h('section.card', { style: { marginTop: '14px' } },
+      h('div.card-head', h('h3', 'Time stitching'), h('span.muted', { style: { fontSize: '12.5px' } }, 'Hours per week, from your project timers')),
+      wrap,
+      h('table.sr', h('caption', 'Hours stitched per week'), h('tbody', weeks.map((w, i) => h('tr', h('th', i === 7 ? 'Last 7 days' : `Week from ${label(w.start)}`), h('td', duration(w.ms)))))));
+  }
 
   function nameForm() {
     const inp = input({ placeholder: 'Your name or maker handle', 'aria-label': 'Your name', maxlength: 40 });

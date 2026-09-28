@@ -6,7 +6,7 @@ import { icon } from '../core/icons.js';
 import * as store from '../core/store.js';
 import { go } from '../core/router.js';
 import { debounce, download, slug, duration, uid } from '../core/util.js';
-import { parseSection } from '../crochet/parser.js';
+import { parseSection, renumber, addCounts } from '../crochet/parser.js';
 import { convertTerms, detectTerms } from '../crochet/terms.js';
 import { distribute, YARN_WEIGHTS, HOOKS } from '../crochet/calc.js';
 import { diagram } from '../crochet/diagram.js';
@@ -291,6 +291,8 @@ function editor(root, id, route) {
             numberInput(sec.pieces || 1, (v) => { const sections = pat.sections.slice(); sections[i] = { ...sections[i], pieces: Math.max(1, Math.round(v || 1)) }; update({ sections }); refresh(); }, { class: 'pieces', min: 1, step: 1, 'aria-label': 'How many to make' }),
             iconBtn('more', 'Part options', (e) => menu(e.currentTarget, [
               { label: 'Insert even increase / decrease', ico: 'calculator', run: () => insertShaping(i) },
+              { label: 'Renumber rows', ico: 'list', run: () => rewrite(i, (t) => ({ text: renumber(t) }), 'Rows renumbered.') },
+              { label: 'Add missing stitch counts', ico: 'check', run: () => rewrite(i, (t) => addCounts(t, { terms: pat.terms }), (r) => (r.added ? `Added ${r.added} count${r.added === 1 ? '' : 's'}.` : 'Every row the checker is sure of already has a count.')) },
               i > 0 ? { label: 'Move up', ico: 'chevron-up', run: () => move(i, -1) } : null,
               i < pat.sections.length - 1 ? { label: 'Move down', ico: 'chevron-down', run: () => move(i, 1) } : null,
               pat.sections.length > 1 ? { label: 'Delete part', ico: 'trash', danger: true, run: async () => {
@@ -302,6 +304,23 @@ function editor(root, id, route) {
             ]))),
           h('div.rows-editor', ta));
       }));
+    };
+    // Apply a text transform to one part, with an undo toast.
+    const rewrite = (i, fn, message) => {
+      const before = pat.sections[i].text;
+      const res = fn(before);
+      if (res.text === before) {
+        toast(typeof message === 'function' ? message(res) : 'Nothing to change.');
+        return;
+      }
+      const sections = pat.sections.slice();
+      sections[i] = { ...sections[i], text: res.text };
+      update({ sections });
+      drawSections();
+      refresh();
+      toast(typeof message === 'function' ? message(res) : message, {
+        action: { label: 'Undo', run: () => { const back = pat.sections.slice(); back[i] = { ...back[i], text: before }; update({ sections: back }); drawSections(); refresh(); } },
+      });
     };
     const move = (i, d) => {
       const sections = pat.sections.slice();
