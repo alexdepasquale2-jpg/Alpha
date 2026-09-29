@@ -1,0 +1,113 @@
+<!doctype html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#07040d">
+<title>ZOOM: The Chihuahua in the Ocean</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%2307040d'/%3E%3Ccircle cx='16' cy='17' r='8' fill='%23d9a066'/%3E%3Cpath d='M8 12 L6 2 L14 9Z M24 12 L26 2 L18 9Z' fill='%23e7b98a'/%3E%3Ccircle cx='13' cy='16' r='2' fill='%23fff'/%3E%3Ccircle cx='19' cy='16' r='2' fill='%23fff'/%3E%3C/svg%3E">
+<style>
+  :root { --ink:#ffd9e6; --hot:#ff6fa3; --lime:#7dffb3; --ui:#2f7dff; }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin:0; height:100%; background:#07040d; color:var(--ink); overflow:hidden; overscroll-behavior:none;
+    font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; touch-action:none; user-select:none; -webkit-user-select:none; }
+  canvas { position:fixed; inset:0; display:block; }
+
+  .card { position:fixed; inset:0; display:none; align-items:center; justify-content:center; padding:20px; overflow-y:auto;
+    background: radial-gradient(ellipse at 50% 40%, rgba(40,8,50,.78), rgba(4,2,8,.94)); z-index:20; text-align:center; }
+  .card.on { display:flex; }
+  .card .inner { max-width:640px; width:100%; margin:auto; }
+  h1 { margin:0 0 4px; font-size:clamp(30px,7vw,64px); letter-spacing:.06em; line-height:1; color:#fff;
+    text-shadow: 0 0 22px rgba(255,111,163,.65), 3px 0 0 rgba(255,60,120,.7), -3px 0 0 rgba(90,220,255,.6); }
+  h1 small { display:block; font-size:.34em; letter-spacing:.34em; color:var(--hot); margin-top:8px; text-shadow:none; }
+  .tag { color:#c99ab0; margin:14px 0 18px; font-family:Georgia,serif; font-style:italic; font-size:clamp(14px,2.6vw,18px); line-height:1.4; }
+  .keys { display:grid; grid-template-columns: auto 1fr; gap:6px 16px; text-align:left; font-size:13px; margin:0 auto 18px; max-width:460px; color:#e8c6d4; }
+  .keys b { color:#fff; background:rgba(255,255,255,.1); padding:1px 7px; border-radius:4px; border:1px solid rgba(255,255,255,.2); white-space:nowrap; }
+  .go { display:inline-block; padding:12px 26px; background:var(--hot); color:#1a0510; font-weight:800; letter-spacing:.14em; border:0; border-radius:6px;
+    font-family:inherit; font-size:15px; cursor:pointer; box-shadow: 0 0 24px rgba(255,111,163,.5); }
+  .go:active { transform: translateY(1px); }
+  .go.alt { background: transparent; color: var(--hot); border: 2px solid var(--hot); box-shadow: none; margin: 8px 0 0 10px; }
+  .small { margin-top:14px; font-size:11px; color:#8a6a7a; }
+  .stats { display:grid; grid-template-columns:1fr auto; gap:5px 24px; max-width:340px; margin:14px auto; text-align:left; font-size:14px; color:#e8c6d4; }
+  .stats span:nth-child(even) { color:#fff; text-align:right; }
+  .laws { color:var(--lime); font-weight:700; letter-spacing:.06em; margin:8px 0; }
+  #endcard { background: #000; }
+
+  /* touch controls */
+  #touch { position:fixed; inset:0; z-index:10; display:none; }
+  #touch.on { display:block; }
+  #touch [data-btn] { position:absolute; width:58px; height:58px; border-radius:50%; border:2px solid rgba(255,255,255,.35);
+    background: rgba(255,255,255,.08); color:#fff; font:700 10px/1 ui-monospace,monospace; display:flex; align-items:center; justify-content:center;
+    letter-spacing:.06em; touch-action:none; }
+  #touch [data-btn].held { background: rgba(255,111,163,.5); border-color:#fff; }
+  #touch .big { width:74px; height:74px; }
+  #touch .small { width:44px; height:44px; font-size:9px; }
+  #b-jump { right:18px; bottom:22px; }
+  #b-grip { right:104px; bottom:18px; }
+  #b-rip { right:18px; bottom:108px; }
+  #b-thr { right:98px; bottom:104px; }
+  #b-hide { right:184px; bottom:22px; }
+  #b-swap { right:190px; bottom:96px; }
+  #b-wear { right:244px; bottom:96px; }
+  #b-bark { right:20px; bottom:188px; }
+  #stick-base, #stick-knob { position:absolute; border-radius:50%; transform:translate(-50%,-50%); display:none; pointer-events:none; }
+  #stick-base.on, #stick-knob.on { display:block; }
+  #stick-base { width:120px; height:120px; border:2px solid rgba(255,255,255,.28); background:rgba(255,255,255,.05); }
+  #stick-knob { width:52px; height:52px; background:rgba(255,255,255,.28); }
+  @media (max-height: 460px) { #b-bark { display:none; } }
+</style>
+
+<canvas id="stage"></canvas>
+
+<div id="touch">
+  <div id="stick-base"></div><div id="stick-knob"></div>
+  <div id="b-jump" class="big" data-btn="jump">JUMP</div>
+  <div id="b-grip" data-btn="grip">GRIP</div>
+  <div id="b-rip" data-btn="rip">RIP</div>
+  <div id="b-thr" data-btn="thr">THROW</div>
+  <div id="b-hide" data-btn="hide">HIDE</div>
+  <div id="b-swap" class="small" data-btn="swap">SWAP</div>
+  <div id="b-wear" class="small" data-btn="wear">WEAR</div>
+  <div id="b-bark" class="small" data-btn="bark">BARK</div>
+</div>
+
+<div id="title" class="card on">
+  <div class="inner">
+    <h1>ZOOM<small>THE CHIHUAHUA IN THE OCEAN</small></h1>
+    <div class="tag">You are a small, loud signal from Earth, trapped inside a bored alien ocean.<br>Steal its rules. Don't get looked at. Wing 1: <b>CONTACT</b>.</div>
+    <div class="keys">
+      <b>A D / ← →</b><span>run</span>
+      <b>Space</b><span>jump</span>
+      <b>Shift + W S</b><span>hold to climb walls</span>
+      <b>E (hold)</b><span>rip a glowing Law out of the wall &mdash; plant, then let go on the bright arc</span>
+      <b>F</b><span>tap to jam it in, hold to throw (W S aims)</span>
+      <b>S / C</b><span>hold inside a Scar to hide</span>
+      <b>Q</b><span>swap mouth / haul (in a Scar: stash)</span>
+      <b>V</b><span>wear the Law in your mouth (wings 2+). wear it again to take it off</span>
+      <b>B</b><span>bark (does nothing. on purpose.)</span>
+    </div>
+    <button id="start" class="go">START</button>
+    <button id="start2" class="go alt">WING 2: APPETITE</button>
+    <button id="start3" class="go alt">WING 3: THE ZOO</button>
+    <div class="small">Touch controls appear when you touch the screen &middot; R restarts &middot; H shows this again &middot; ` debug</div>
+  </div>
+</div>
+
+<div id="endcard" class="card">
+  <div class="inner">
+    <h1><span id="end-title">CONTACT</span><small id="end-sub">WING ONE, SURVIVED</small></h1>
+    <div class="tag" id="end-tag">You crawl out of the tooth into black.<br>The ocean mutters your footsteps.</div>
+    <div class="laws" id="end-laws"></div>
+    <div class="stats">
+      <span>Holes made</span><span id="end-holes"></span>
+      <span>Clean rips</span><span id="end-perfect"></span>
+      <span>Menus smashed</span><span id="end-smashed"></span>
+      <span>Menus accepted (leash)</span><span id="end-leash"></span>
+      <span>Times swallowed</span><span id="end-digests"></span>
+      <span>Time</span><span id="end-time"></span>
+    </div>
+    <button id="next" class="go">CONTINUE: APPETITE</button>
+    <button id="again" class="go alt">AGAIN</button>
+    <div class="small" id="end-note"></div>
+  </div>
+</div>
+
+<script type="module" src="js/main.js"></script>
