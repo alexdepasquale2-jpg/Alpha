@@ -17,7 +17,7 @@ const audio = new Sound();
 const startWing = Math.min(3, Math.max(1, Number(new URLSearchParams(location.search).get('wing')) || 1));
 let g = newGame(undefined, { wing: startWing });
 const cam = { x: g.p.x, y: g.p.y - 40, zoom: 1.5, rot: 0 };
-const fx = { parts: [], shake: 0, sway: 0, dogAng: 0, dogFace: 1, debug: new URLSearchParams(location.search).has('debug') };
+const fx = { squash: 0, punch: 0, parts: [], shake: 0, sway: 0, dogAng: 0, dogFace: 1, debug: new URLSearchParams(location.search).has('debug') };
 const view = { w: 0, h: 0 };
 let started = false;
 let override = null; // tests can inject inputs
@@ -59,13 +59,15 @@ function vibrate(ms) { try { navigator.vibrate?.(ms); } catch { /* not supported
 function handle(e) {
   audio.play(e.type, e);
   switch (e.type) {
-    case 'rip':
+    case 'rip': fx.punch = 0.08;
+      
       fx.shake = Math.max(fx.shake, e.perfect ? 9 : 16);
       burst(e.x, e.y, LAWS[e.law].color, 26, 240, 0.8, 4);
       popup(e.x, e.y - 36, e.perfect ? 'CLEAN' : 'RAGGED', e.perfect ? '#b8ffd8' : '#ff9a9a', 12);
       vibrate(e.perfect ? 40 : 80);
       break;
     case 'plant': vibrate(15); break;
+    case 'jump': dust(g.p.x, g.p.y + 10, 5, 70); fx.squash = -0.25; break;
     case 'hurt': fx.shake = Math.max(fx.shake, 11); vibrate(35); break;
     case 'bark': popup(g.p.x, g.p.y - 26, BARKS[(Math.random() * BARKS.length) | 0], '#ffe3a8', 15); break;
     case 'write': burst(e.x, e.y, LAWS[e.law]?.color || '#fff', 22, 200, 0.7, 3.5); fx.shake = Math.max(fx.shake, 4); break;
@@ -150,8 +152,28 @@ function angleLerp(a, b, t) {
   return a + d * t;
 }
 
+const dustCol = () => (g.wing === 2 ? '#c9a06a' : g.wing === 3 ? '#9fc8c4' : '#d8a0c0');
+function dust(x, y, n, sp) {
+  for (let i = 0; i < n; i++) {
+    const s = (Math.random() - 0.5) * 2 * sp;
+    fx.parts.push({ x: x + (Math.random() - 0.5) * 10, y, vx: s, vy: -Math.random() * 40, life: 0.45, max: 0.45, color: dustCol(), size: 2 + Math.random() * 2.5, soft: true });
+  }
+}
+let wasGround = true; let runT = 0; let lastVy = 0;
+function updateFeel(dt) {
+  const p = g.p;
+  if (p.grounded && !wasGround && lastVy > 260 && !p.hiding) { dust(p.x, p.y + 10, 8, 110); fx.squash = Math.min(0.4, lastVy / 2200); }
+  wasGround = p.grounded; lastVy = p.vy;
+  runT += dt;
+  if (p.grounded && Math.abs(p.vx) > 200 && runT > 0.07) { runT = 0; dust(p.x - Math.sign(p.vx) * 8, p.y + 10, 1, 25); }
+  fx.squash += (0 - fx.squash) * Math.min(1, dt * 12);
+  // a shove of zoom on every rip, easing back out
+  fx.punch = (fx.punch || 0) * Math.max(0, 1 - dt * 6);
+}
+
 function updateCamera(dt) {
   const p = g.p;
+  updateFeel(dt);
   const rotT = g.k * (Math.PI / 2);
   cam.rot = angleLerp(cam.rot, rotT, Math.min(1, dt * 3.2));
   const [lx, ly] = toWorld(g, p.face * 70, -34);
@@ -164,7 +186,7 @@ function updateCamera(dt) {
   if (g.chase.state === 'hunt' || g.chase.state === 'opening') zt = 1.05;
   else if (inHall) zt = 1.3;
   if (p.hiding) zt = 2.1;
-  cam.zoom += (zt - cam.zoom) * Math.min(1, dt * 2.2);
+  cam.zoom += (zt * (1 + fx.punch) - cam.zoom) * Math.min(1, dt * 2.2 + (fx.punch > 0.01 ? 0.3 : 0));
   const k = Math.min(1, dt * (p.hiding ? 3 : 5));
   cam.x += (tx - cam.x) * k;
   cam.y += (ty - cam.y) * k;

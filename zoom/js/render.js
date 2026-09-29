@@ -791,7 +791,9 @@ function drawDog(ctx, g, cam, fx, t) {
   const lean = p.grip ? 0 : clamp(moving / 300, 0, 1) * 0.12;
   ctx.rotate(lean);
   const squat = g.rip ? 3 : 0;
-  ctx.translate(0, squat);
+  ctx.translate(0, squat + 10 * (fx.squash > 0 ? fx.squash : 0));
+  ctx.scale(1 + Math.max(0, fx.squash) * 0.6 - Math.max(0, -fx.squash) * 0.3, 1 - Math.max(0, fx.squash) + Math.max(0, -fx.squash) * 0.5);
+  ctx.translate(0, -10 * (fx.squash > 0 ? fx.squash : 0));
   // haul rope + chunk dragged behind
   if (p.haul) {
     const hc = LAWS[p.haul].color;
@@ -887,13 +889,21 @@ function drawParticles(ctx, fx, cam) {
       ctx.fillText(q.text, 0, 0); ctx.restore();
     } else {
       ctx.fillStyle = q.color;
-      ctx.fillRect(q.x - q.size / 2, q.y - q.size / 2, q.size, q.size);
+      if (q.soft) { ctx.beginPath(); ctx.arc(q.x, q.y, q.size * (1.4 - q.life / q.max * 0.6), 0, TAU); ctx.fill(); }
+      else ctx.fillRect(q.x - q.size / 2, q.y - q.size / 2, q.size, q.size);
     }
   }
   ctx.globalAlpha = 1;
 }
 
 function drawOverlay(ctx, g, cam, fx, W, H, S, t, tier) {
+  // at Stare and worse the picture splits at the edges, like a bad signal
+  if (tier >= 2) {
+    const k = (tier === 3 ? 6 : 3) * (0.6 + 0.4 * Math.sin(t * 7));
+    ctx.save(); ctx.globalCompositeOperation = 'screen'; ctx.globalAlpha = 0.1;
+    ctx.drawImage(ctx.canvas, 0, 0, ctx.canvas.width, ctx.canvas.height, -k, 0, W, H);
+    ctx.restore();
+  }
   // vignette by tier
   const cols = ['0,0,0', '30,8,50', '90,8,26', '150,10,30'];
   const strength = [0.5, 0.58, 0.68, 0.75][tier];
