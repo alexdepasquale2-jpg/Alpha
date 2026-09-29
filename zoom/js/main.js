@@ -14,7 +14,7 @@ const endEl = document.getElementById('endcard');
 const input = createInput();
 const audio = new Sound();
 
-const startWing = new URLSearchParams(location.search).get('wing') === '2' ? 2 : 1;
+const startWing = Math.min(3, Math.max(1, Number(new URLSearchParams(location.search).get('wing')) || 1));
 let g = newGame(undefined, { wing: startWing });
 const cam = { x: g.p.x, y: g.p.y - 40, zoom: 1.5, rot: 0 };
 const fx = { parts: [], shake: 0, sway: 0, dogAng: 0, dogFace: 1, debug: new URLSearchParams(location.search).has('debug') };
@@ -91,6 +91,14 @@ function handle(e) {
     case 'mawSnap': if (Math.hypot(e.x - g.p.x, e.y - g.p.y) < 400) fx.shake = Math.max(fx.shake, 6); break;
     case 'surge': fx.shake = 24; break;
     case 'surgeWarn': fx.shake = 8; break;
+    case 'boing': burst(e.x, e.y, '#e8d36a', 10, 160, 0.4, 3); popup(e.x, e.y - 14, 'BOING', '#f7e68a', 11); break;
+    case 'gateBreak': fx.shake = Math.max(fx.shake, 12); burst(e.x, e.y, '#9ee8ff', 30, 280, 0.8, 4); popup(e.x, e.y - 30, 'UNSUBSCRIBED', '#fff', 11); break;
+    case 'gateBite': fx.shake = Math.max(fx.shake, 3); burst(e.x, e.y ?? g.p.y, '#eaf4ff', 6, 120, 0.3, 3); break;
+    case 'click': fx.shake = Math.max(fx.shake, 16); burst(e.x, e.y, '#ffffff', 22, 260, 0.6, 4); break;
+    case 'closing': fx.shake = 8; break;
+    case 'shutter': fx.shake = Math.max(fx.shake, 5); break;
+    case 'berserk': burst(e.x, e.y, '#ff5fd2', 16, 200, 0.6, 3); break;
+    case 'decoy': burst(e.x, e.y, '#e8d36a', 18, 160, 0.7, 3); break;
     case 'sphincterOpen': fx.shake = 14; break;
     case 'glassOn': burst(e.x, e.y, '#a8ecff', 3, 40, 0.4, 2); break;
     case 'menuSpawn': burst(e.x, e.y, '#2f7dff', 10, 90, 0.5, 3); break;
@@ -100,19 +108,24 @@ function handle(e) {
   }
 }
 
+const WINGS = {
+  1: { title: 'CONTACT', sub: 'WING ONE, SURVIVED', tag: 'You crawl out of the tooth into black.<br>The ocean mutters your footsteps.', next: 'CONTINUE: APPETITE' },
+  2: { title: 'APPETITE', sub: 'WING TWO, SURVIVED', tag: 'The sphincter forgets what it was for.<br>The stomach is still hungry. Just not for you.', next: 'WING THREE: THE ZOO' },
+  3: { title: 'THE ZOO', sub: 'WING THREE, SURVIVED', tag: 'You are, technically, no longer an exhibit.<br>The cursor is still clicking where you were.', next: 'WING FOUR: INTERFERENCE' },
+};
+
 function showEnd() {
   const held = [g.p.worn, g.p.mouth, g.p.haul].filter(Boolean).map((id) => LAWS[id].name);
   if (g.p.hearts > 0) held.push(`${g.p.hearts} HEARTS`);
-  const w2 = g.wing === 2;
-  document.getElementById('end-title').textContent = w2 ? 'APPETITE' : 'CONTACT';
-  document.getElementById('end-sub').textContent = w2 ? 'WING TWO, SURVIVED' : 'WING ONE, SURVIVED';
-  document.getElementById('end-tag').innerHTML = w2
-    ? 'The sphincter forgets what it was for.<br>The stomach is still hungry. Just not for you.'
-    : 'You crawl out of the tooth into black.<br>The ocean mutters your footsteps.';
-  document.getElementById('next').textContent = w2 ? 'WING THREE: THE ZOO' : 'CONTINUE: APPETITE';
-  document.getElementById('next').disabled = w2;
-  document.getElementById('next').style.opacity = w2 ? '0.35' : '1';
-  document.getElementById('end-note').textContent = w2 ? 'The Zoo is not built yet. The rest is in docs/ZOOM.md.' : '';
+  const W = WINGS[g.wing];
+  const last = g.wing >= 3;
+  document.getElementById('end-title').textContent = W.title;
+  document.getElementById('end-sub').textContent = W.sub;
+  document.getElementById('end-tag').innerHTML = W.tag;
+  document.getElementById('next').textContent = W.next;
+  document.getElementById('next').disabled = last;
+  document.getElementById('next').style.opacity = last ? '0.35' : '1';
+  document.getElementById('end-note').textContent = last ? 'Interference is not built yet. The rest is in docs/ZOOM.md.' : '';
   document.getElementById('end-laws').textContent = held.length ? held.join('  +  ') : 'nothing. you crawl out with your teeth.';
   document.getElementById('end-holes').textContent = g.stats.holes;
   document.getElementById('end-perfect').textContent = g.stats.perfect;
@@ -144,7 +157,8 @@ function updateCamera(dt) {
   const [lx, ly] = toWorld(g, p.face * 70, -34);
   const tx = p.x + lx; const ty = p.y + ly;
   const inHall = p.x > g.L.hall.x0;
-  let zt = g.wing === 2 ? 1.3 : 1.5;
+  let zt = g.wing > 1 ? 1.3 : 1.5;
+  if (g.wing === 3 && g.L.closing.on) zt = 1.1;
   if (p.grip) zt = 1.12;                                   // pull back: small on a moving rib
   if (g.aim) zt = 1.3;
   if (g.chase.state === 'hunt' || g.chase.state === 'opening') zt = 1.05;
@@ -205,9 +219,9 @@ function launch(wing, carry) {
 function restart() { launch(g.wing); }
 
 function nextWing() {
-  if (g.wing !== 1 || !g.end) return;
+  if (g.wing >= 3 || !g.end) return;
   const p = g.p;
-  launch(2, { mouth: p.mouth, haul: p.haul, worn: p.worn, hearts: p.hearts, stats: g.stats });
+  launch(g.wing + 1, { mouth: p.mouth, haul: p.haul, worn: p.worn, hearts: p.hearts, stats: g.stats });
 }
 
 input.onFirst = (e) => {
@@ -225,7 +239,9 @@ window.addEventListener('keydown', (e) => {
 document.getElementById('start')?.addEventListener('click', begin);
 document.getElementById('again')?.addEventListener('click', restart);
 document.getElementById('next')?.addEventListener('click', nextWing);
-document.getElementById('start2')?.addEventListener('click', () => { if (!started) { launch(2); titleEl.classList.remove('on'); audio.start(); } });
+for (const [id, wing] of [['start2', 2], ['start3', 3]]) {
+  document.getElementById(id)?.addEventListener('click', () => { if (!started) { launch(wing); titleEl.classList.remove('on'); audio.start(); } });
+}
 document.getElementById('touch')?.addEventListener('pointerdown', () => { if (!started) begin(); });
 
 /* ---------------- loop ---------------- */

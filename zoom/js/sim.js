@@ -5,6 +5,7 @@ import { clamp, sign, dist, overlap, pointIn, rng } from './geom.js';
 import { LAWS } from './laws.js';
 import { buildLevel } from './level.js';
 import { buildAppetite, eject, resetAppetiteAfterDigest, onAppetiteRip } from './appetite.js';
+import { buildZoo, zooBite, resetZooAfterDigest, onZooRip } from './zoo.js';
 import {
   DT, GV, TV, NOTICE, tierOf, emit, say, boxOf, blockedAt, toWorld, toScreen,
   lawsCarried, heaviestLaw, inBubble, inHall, addNotice,
@@ -14,12 +15,12 @@ import { updateWorld, startChase, resetChase, targetsAt, applyToTarget } from '.
 export { DT, tierOf, TIER_NAMES } from './core.js';
 
 /**
- * opts.wing  1 = Contact, 2 = Appetite
+ * opts.wing  1 = Contact, 2 = Appetite, 3 = the Zoo
  * opts.carry {mouth, haul, worn, stats} from the wing before
  */
 export function newGame(seed = 7, opts = {}) {
   const wing = opts.wing || 1;
-  const L = wing === 2 ? buildAppetite() : buildLevel();
+  const L = wing === 3 ? buildZoo() : wing === 2 ? buildAppetite() : buildLevel();
   const g = {
     t: 0, phase: 'play', wing, L, k: 0, rand: rng(seed),
     p: {
@@ -32,7 +33,7 @@ export function newGame(seed = 7, opts = {}) {
     spawn: { ...L.spawn },
     notice: 0, floor: 0, peak: 0, sag: 0, hideT: 0, comfort: 0,
     prev: {}, rip: null, aim: null,
-    proj: [], teeth: [], bubbles: [], windows: [], foot: [], pickups: [], menus: [], drops: [],
+    proj: [], teeth: [], bubbles: [], windows: [], foot: [], pickups: [], menus: [], drops: [], shots: [], decoy: null,
     menuMode: null, chase: resetChase(L),
     stats: { holes: 0, leash: 0, digests: 0, smashed: 0, perfect: 0 },
     ev: [], line: null, lineT: 0, digest: null, end: null,
@@ -43,6 +44,15 @@ export function newGame(seed = 7, opts = {}) {
     g.p.mouth = c.mouth || null; g.p.haul = c.haul || null; g.p.worn = c.worn || null;
     g.p.hearts = c.hearts || 0;
     if (c.stats) g.stats = { ...c.stats };
+  }
+  if (wing === 3) {
+    // spat out at the ticket hall, from a height
+    g.p.y = L.spawn.y - 420;
+    g.spawn = { x: L.spawn.x, y: L.spawn.y - 10 };
+    g.line = 'NOW ENTERING: EARTH (COLLECTED).'; g.lineT = 4;
+    for (const d of L.menuSpawns) {
+      g.menus.push({ x: d.x, y: d.y, kind: 'docent', hp: 1, accepted: false, born: 0, speed: d.speed, wake: d.wake, sleep: true, text: d.text });
+    }
   }
   if (wing === 2) {
     // the swallow: you arrive from above
@@ -467,6 +477,7 @@ function finishRip(g, r, perfect) {
     say(g, 'I LOOKED.', 3);
   }
   if (g.wing === 2) onAppetiteRip(g, v);
+  if (g.wing === 3) onZooRip(g, v);
   if (v.id !== 'frame') addNotice(g, cost);
   g.comfort = 0;
 }
@@ -482,6 +493,7 @@ function updatePickup(g, inp, e) {
   const mm = g.menuMode && g.menus.includes(g.menuMode) ? g.menuMode : g.menus.find((m) => dist(m.x, m.y, p.x, p.y) < 70);
   if (mm) { biteMenu(g, mm); return; }
   if (nearVein(g)) return; // updateRip handles it
+  if (g.wing === 3 && zooBite(g)) return;
   for (let i = 0; i < g.pickups.length; i++) {
     const pk = g.pickups[i];
     if (g.t - pk.born < 0.4) continue;
@@ -516,6 +528,7 @@ export function smashMenu(g, m) {
 }
 
 export function acceptMenu(g, m) {
+  if (g.menuMode) return;
   m.accepted = true;
   m.hp = 3;
   g.menuMode = m;
@@ -590,6 +603,8 @@ function updateNotice(g, dt) {
   if (p.moving && !p.hiding) rate += 0.15 * lawsCarried(g);
   if (p.worn === 'LOOKS' && !p.hiding) rate += 0.6;   // ZOOM can see through it too
   if (p.worn === 'BORED' && !p.hiding && !g.menuMode) rate -= 2.5;
+  if (p.worn === 'SMASH' && !p.hiding) rate += 0.4;    // violence is loud
+  if (p.worn === 'OWNS' && !p.hiding) rate += 0.8;     // so is management
   g.notice = clamp(g.notice + rate * dt, g.floor, inHall(g) ? NOTICE.max : 92);
   g.peak = Math.max(g.peak, g.notice);
 }
@@ -632,6 +647,7 @@ function updateDigest(g, dt) {
       g.notice = Math.min(g.notice, 45);
     }
     if (g.wing === 2) resetAppetiteAfterDigest(g);
+    if (g.wing === 3) resetZooAfterDigest(g);
     p.inv = 2;
     emit(g, 'spit');
   }

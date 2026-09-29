@@ -116,6 +116,31 @@ check('chase, roll, static and windows render without errors', errors.length ===
   await p2.close();
 }
 
+// ---- wing three boots too, and its fixtures render
+{
+  const p3 = await browser.newPage({ viewport: { width: 960, height: 540 } });
+  const errs3 = [];
+  p3.on('pageerror', (e) => errs3.push(e.message));
+  p3.on('console', (m) => { if (m.type() === 'error') errs3.push(m.text()); });
+  await p3.goto(`${BASE}/index.html?wing=3`);
+  await p3.waitForFunction('window.__zoom');
+  await p3.click('#start');
+  check('?wing=3 boots the zoo', await p3.evaluate('window.__zoom.g.wing') === 3);
+  await p3.evaluate(`(() => {
+    const g = window.__zoom.g;
+    g.p.worn = 'SMASH'; g.p.hearts = 2; g.p.x = 5400; g.p.y = 588;
+    g.L.closing.on = true; g.L.closing.t = 6; g.L.cursor.active = true; g.L.cursor.state = 'aim'; g.L.cursor.tx = 5420; g.L.cursor.ty = 590; g.L.cursor.t = 0.4;
+    g.L.shutters[0].state = 'closing'; g.L.shutters[0].p = 0.5; g.L.shutters[0].rect.h = 130; g.L.shutters[0].rect.on = true;
+    g.decoy = { x: 5350, y: 585, r: 340, t: 10, ref: null };
+    g.menus[0].berserk = 5;
+  })()`);
+  await p3.waitForTimeout(900);
+  await p3.evaluate(`(() => { const g = window.__zoom.g; g.p.x = 2500; g.p.y = 580; })()`);
+  await p3.waitForTimeout(500);
+  check('docents, gates, placards, the cursor and the trampoline render without errors', errs3.length === 0, errs3.join(' | '));
+  await p3.close();
+}
+
 await browser.close();
 console.log(`\n${passed} passed, ${failed} failed`);
 await done(failed ? 1 : 0);

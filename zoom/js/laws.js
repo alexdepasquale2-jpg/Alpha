@@ -22,6 +22,14 @@ export const LAWS = {
     id: 'LEAVES', name: 'LEAVES THE MEETING', color: '#ffb45e', weight: 2,
     notice: 16, plant: 0.9, wobble: 3.8, sweet: 0.85, wearable: true,
   },
+  SMASH: {
+    id: 'SMASH', name: 'SMASHES MENUS', color: '#ff5fd2', weight: 2,
+    notice: 20, plant: 1.0, wobble: 4.6, sweet: 0.8, wearable: true,
+  },
+  OWNS: {
+    id: 'OWNS', name: 'OWNS THE ROOM', color: '#e8d36a', weight: 2,
+    notice: 14, plant: 0.7, wobble: 3.2, sweet: 0.9, wearable: true,
+  },
   BORED: {
     id: 'BORED', name: 'GETS BORED', color: '#b7a6ff', weight: 1,
     notice: 10, plant: 0.6, wobble: 2.8, sweet: 1.0, wearable: true,

@@ -1,7 +1,8 @@
-# ZOOM: The Chihuahua in the Ocean: Contact and Appetite
+# ZOOM: The Chihuahua in the Ocean: Contact, Appetite and the Zoo
 
 A playable prototype of [`docs/ZOOM.md`](../docs/ZOOM.md): the Contact slice (three Scars, one chase)
-and **Wing Two, Appetite** (four Scars, an acid clock, wearable Laws, a stomach that clenches). Vanilla JS + canvas, no build step, no
+**Wing Two, Appetite** (four Scars, an acid clock, wearable Laws, a stomach that clenches) and
+**Wing Three, the Zoo** (four Scars, Menus as enemies and weapons, a cursor that clicks you, closing time). Vanilla JS + canvas, no build step, no
 dependencies, no assets (all art is drawn in code and all sound is synthesized).
 
 ```sh
@@ -26,8 +27,8 @@ appear when you touch the screen).
 | **Wear** the Law in your mouth / take it off | `V` | WEAR | LT |
 | Bark | `B` | BARK | R3 |
 
-The title card has **START** (Contact) and **WING 2: APPETITE**; `?wing=2` in the URL skips straight to the stomach,
-and the Contact end card has a CONTINUE button that carries your Laws and tallies across.
+The title card has **START** (Contact), **WING 2: APPETITE** and **WING 3: THE ZOO**; `?wing=2` / `?wing=3` in the URL skips
+straight there, and each end card has a CONTINUE button that carries your Laws and tallies to the next wing.
 
 `R` restarts the wing you are in. `H` shows the title card. `` ` `` toggles a debug readout (`?debug` starts with it on).
 Bark does nothing. That is the joke and the rule.
@@ -78,6 +79,33 @@ rule on you instead of a thing you throw.
   (rip the second sign and the stomach clenches; seven balconies, two more maws, and the exit sphincter at the top).
 - If a thrown-away Law leaves the wing unbeatable, ZOOM grows another window / sign (`updateSafety` in `appetite.js`).
 
+## Wing three: the Zoo
+
+ZOOM's collection of things it took from Earth, curated, with its interface leaking into the world. **Menus are the
+enemy** and you already know how to handle one: bite it, land on it, or walk into it and get a job.
+
+| | |
+|---|---|
+| **Docents** | floating Menus that wake when you get close and drift at you. Touching one employs you (Leash goes up). They are also fragile: one bite, or land on one from above. |
+| **Ticket gates** | turnstiles that want a ticket. A Menu on your back *is* a ticket (the gate waves you through), or bite it six times, or smash it, or walk into it wearing SMASHES MENUS. |
+| **Placards** | hang in the air and fire tooltips ("HAVE YOU TRIED BEING USEFUL?") at whatever they can see. Two bites, or a thrown Law. |
+| **The trampoline** | is just a pad until you *jump* on it. |
+| **The cursor** | ZOOM's attention at colossus scale. It hovers over you, locks a red ring where you are, and clicks 0.45 s later. Keep moving and it hits where you were. |
+| **Closing time** | cross the line in Room 4 and three shutters come down, 5, 8.5 and 12 seconds in. Shut in behind one and ZOOM removes you (unless you can break the CLOSED sign). |
+
+| Law | Ripped from | Thrown or jammed | Worn |
+|---|---|---|---|
+| SMASHES MENUS | a ticket window | at a Menu: it goes berserk for 8 s and smashes every Menu, placard and gate it can see, then itself. At a gate, placard or CLOSED sign: gone | Menus shatter when they touch you, turnstiles and tooltips too. Loud (Notice +0.4/s) |
+| OWNS THE ROOM | a coin in a locked cage | anywhere: a crowned pebble becomes the boss of the space for 12 s. Docents crowd it, placards fire at it, the cursor clicks it and is busy for 3 s | docents and placards leave you alone and follow you around like staff. Very loud (+0.8/s) |
+
+- **Rooms:** the Ticket Hall (three bites, a ticket window), Specimen Row (a station wagon to climb, a payphone that is
+  out of order forever, a trampoline up to a gallery with a locked coin cage), the Gift Shop (six docents and an exit
+  gate), Closing Time (pits with trampolines at the bottom, placards, shutters, the cursor).
+- **Choices with a price.** Accepting a Menu gets you through a gate for free and adds to your Leash tally; biting is
+  slow and noisy; SMASHES MENUS is fast and loud. The tallies are carried between wings and will pick the ending.
+- The Scar just before Closing Time (the Ticket Stub) is where you cool off. At Stare the floor grows teeth ahead of you.
+- If a thrown-away Law leaves you unable to open a shutter, ZOOM grows another ticket window.
+
 ## Files
 
 ```
@@ -85,6 +113,8 @@ js/sim.js      the simulation: player physics, grip, rip, throw/jam, hide, Notic
 js/world.js    everything else: gate, warden, mites, panes, Menus, projectiles, teeth, the eye
 js/appetite.js wing two: level, acid, maws, glass, crumbles, worn effects, exit
 js/render_appetite.js  wing two's look
+js/zoo.js      wing three: level, gates, placards, springs, decoy, closing time, the cursor
+js/render_zoo.js       wing three's look
 js/level.js    the wing, authored as rects
 js/laws.js     Law data
 js/core.js     shared helpers (gravity tables, Notice tiers, line of sight)
@@ -98,7 +128,7 @@ The sim has no DOM in it. `tests/zoom.test.mjs` drives it with a scripted bot th
 inputs (no teleporting in the full-wing run) and asserts every beat of the slice.
 
 ```sh
-npm run test:zoom       # both wings, headless, then a browser smoke test
+npm run test:zoom       # all three wings, headless, then a browser smoke test
 ```
 
 `tests/zoom_bot.mjs` is the bot's toolbox. It can fork the game (`structuredClone` plus the RNG state), so it
@@ -122,6 +152,6 @@ breath cycle (`g.t % 3.8 < 2.5` in `step`), the chase timeline in `world.js: upd
 
 ## Not in the slice (by design)
 
-Zoo, Interference, The Show, the
-tallies that pick an ending (Holes / Leash / Digests are counted and carried from Contact into Appetite,
-but only the crawl-out ending exists), New Game+. BLUE BLOOD, SMASHES MENUS, OWNS THE ROOM, WATCHES AFTER and PRODUCER are only described in the design doc.
+Interference, The Show, the
+tallies that pick an ending (Holes / Leash / Digests are counted and carried from wing to wing,
+but only the crawl-out ending exists), New Game+. BLUE BLOOD, WATCHES AFTER and PRODUCER are only described in the design doc.

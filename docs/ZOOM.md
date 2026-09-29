@@ -3,7 +3,7 @@
 *Game concept + 20-minute vertical-slice design.*
 *Rule zero: if a system isn't fun in the hands, cut it.*
 
-> **Playable:** the §8 slice (Contact) and Wing Two (Appetite) are built. See [`zoom/README.md`](../zoom/README.md), or `npm run zoom`.
+> **Playable:** the §8 slice (Contact), Wing Two (Appetite) and Wing Three (the Zoo) are built. See [`zoom/README.md`](../zoom/README.md), or `npm run zoom`.
 
 ---
 
@@ -268,3 +268,17 @@ Design notes from building Wing Two, where the prototype differs from the wing t
   and it re-arms when you head back for the balconies. Scar 4 (Hollow Balcony) is mid-climb on purpose: hide there
   until Notice drops under Stare and the flood ebbs.
 - **Nothing strands you.** If a required Law is gone from the world, ZOOM grows another vein for it.
+
+## Appendix: what the Zoo turned into
+
+- **Menus stopped being a tutorial gag and became the enemy class.** Docents (the old drifting Menu, now in crowds), turnstiles,
+  placards and CLOSED signs are all Menu-shaped, so one Law, SMASHES MENUS, answers all of them. Thrown at a docent it does the
+  thing the doc promised: the Menu it touches turns on the other Menus.
+- **Leash is a price you can pay.** A gate opens for anyone with a Menu on their back. That is the cheap route through the Ticket Hall
+  and it costs a tally that the ending will read. Biting is the slow route and smashing the loud one.
+- **OWNS THE ROOM became a decoy.** "A tiny object becomes the boss of the space" turned out to mean: everything that was looking at you
+  looks at the pebble. It works on docents, placards and the cursor, which makes it the answer to the finale.
+- **The chase is the cursor.** ZOOM's attention at colossus scale in a wing about interfaces is a mouse pointer: a telegraphed ring,
+  a click 0.45 s after it stops following you, then a busy wheel. You never damage it; you keep moving, hide, or give it something else to click.
+- **Closing time is a clock made of shutters** in the same family as Appetite's acid: greed makes it worse (Stare grows teeth in the floor),
+  a Scar right before it lets you cool off, and being removed by the zoo is the same as being swallowed.

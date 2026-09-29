@@ -8,6 +8,7 @@ import {
 } from './core.js';
 import { beginDigest, smashMenu, acceptMenu } from './sim.js';
 import { updateAppetite, appetiteTargets, applyAppetite } from './appetite.js';
+import { updateZoo, zooTargets, applyZoo, berserkTarget, smashTarget } from './zoo.js';
 
 /* ------------------------------------------------------------------ */
 /* chase state                                                         */
@@ -47,6 +48,7 @@ export function targetsAt(g, x, y, r, law) {
   for (const m of g.L.molars) if (!m.cracked && !m.chewed && circleRect(x, y, r, m.rect)) add('molar', m, m.rect.x + m.rect.w / 2, m.rect.y + m.rect.h / 2);
   if (law === 'WONT_CLOSE') for (const s of g.L.scars) if (circleRect(x, y, r, s.zone)) add('scar', s, x, y);
   if (g.wing === 2) appetiteTargets(g, x, y, r, law, add);
+  if (g.wing === 3) zooTargets(g, x, y, r, law, add);
   if (!out.length) return null;
   out.sort((a, b) => a.d - b.d);
   return out[0];
@@ -102,6 +104,10 @@ export function applyToTarget(g, law, t, how) {
   const ref = t.ref;
   if (g.wing === 2) {
     const handled = applyAppetite(g, law, t);
+    if (handled !== undefined) return handled;
+  }
+  if (g.wing === 3) {
+    const handled = applyZoo(g, law, t);
     if (handled !== undefined) return handled;
   }
   const write = () => emit(g, 'write', { law, x: t.x, y: t.y });
@@ -172,6 +178,7 @@ export function updateWorld(g, dt) {
   updateAmbient(g, dt);
   updateChase(g, dt);
   if (g.wing === 2) updateAppetite(g, dt);
+  if (g.wing === 3) updateZoo(g, dt);
 }
 
 function updateGate(g, dt) {
@@ -314,6 +321,10 @@ function updateMenus(g, dt) {
     g.L.plank.on = true;
     emit(g, 'plank');
   }
+  const sv = toScreen(g, p.vx, p.vy);
+  const smasher = p.worn === 'SMASH';
+  const boss = p.worn === 'OWNS';
+  const D = g.decoy;
   for (const m of g.menus.slice()) {
     if (m.accepted) {
       const [ox, oy] = toWorld(g, 30, -58);
@@ -321,11 +332,47 @@ function updateMenus(g, dt) {
       m.y += (p.y + oy - m.y) * Math.min(1, dt * 7);
       continue;
     }
+    // berserk: a Menu that has been told to smash Menus
+    if (m.berserk > 0) {
+      m.berserk -= dt;
+      const tg = berserkTarget(g, m);
+      if (tg) {
+        const d = Math.hypot(tg.x - m.x, tg.y - m.y) || 1;
+        m.x += ((tg.x - m.x) / d) * 260 * dt; m.y += ((tg.y - m.y) / d) * 260 * dt;
+        if (d < 26) { smashTarget(g, tg); m.berserk = Math.max(m.berserk, 3); }
+      }
+      if (m.berserk <= 0 && g.menus.includes(m)) smashMenu(g, m);
+      continue;
+    }
     const dx = p.x - m.x;
     const dy = p.y - 26 - m.y;
     const d = Math.hypot(dx, dy) || 1;
-    if (d < 700 && !p.hiding) { m.x += (dx / d) * 46 * dt; m.y += (dy / d) * 46 * dt; }
-    if (d < 28 && !p.hiding && !g.digest) acceptMenu(g, m);
+    if (m.sleep) {
+      if (m.bored || d > (m.wake || 0) * (tier >= 2 ? 1.3 : 1) || p.hiding) continue;
+      m.sleep = false;
+      if (g.wing === 3 && !g.flags.docentHint) { g.flags.docentHint = true; say(g, 'a docent floats over, smiling. it has a job for you.', 4); }
+    }
+    // the boss of the room pulls them away from you
+    let tx = p.x; let ty = p.y - 26; let chasePlayer = true;
+    if (D && Math.hypot(D.x - m.x, D.y - m.y) < D.r) { tx = D.x; ty = D.y; chasePlayer = false; }
+    else if (boss) chasePlayer = false;
+    const td = Math.hypot(tx - m.x, ty - m.y) || 1;
+    const speed = (m.speed || 46) * (tier >= 2 ? 1.3 : 1);
+    if (td < 700 && !p.hiding && (!chasePlayer || !boss) && td > (chasePlayer ? 0 : 36)) {
+      m.x += ((tx - m.x) / td) * speed * dt; m.y += ((ty - m.y) / td) * speed * dt;
+    }
+    if (!chasePlayer) continue;
+    // stomped from above
+    if (sv[1] > 80 && Math.abs(p.x - m.x) < 26 && p.y < m.y - 4 && Math.abs(p.y - m.y) < 40 && !g.digest) {
+      smashMenu(g, m);
+      const [ux, uy] = toWorld(g, 0, -1);
+      p.vx += ux * 300; p.vy += uy * 300;
+      continue;
+    }
+    if (d < 28 && !p.hiding && !g.digest) {
+      if (smasher) { smashMenu(g, m); say(g, 'UNSUBSCRIBED.'); }
+      else if (!g.menuMode) acceptMenu(g, m);
+    }
   }
 }
 

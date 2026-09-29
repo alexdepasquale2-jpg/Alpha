@@ -4,6 +4,7 @@ import { LAWS } from './laws.js';
 import { clamp, lerp, pointIn, circleRect, dist } from './geom.js';
 import { GV, TV, tierOf, lawsCarried } from './core.js';
 import { launchVelocity } from './sim.js';
+import { ZOO_SKY, drawZooBack, drawZooWorld, drawZooFront } from './render_zoo.js';
 import { APPETITE_SKY, drawAppetiteBack, drawAppetiteWorld, drawAcid, drawWornBody, drawWornAura, drawAcidOverlay, heartPath } from './render_appetite.js';
 
 const TAU = Math.PI * 2;
@@ -71,8 +72,10 @@ export function draw(ctx, g, cam, fx, view) {
     drawCurtains(ctx, g, vis, t);
     drawGateAndDoor(ctx, g, t);
     drawMolars(ctx, g, t);
-  } else {
+  } else if (g.wing === 2) {
     drawAppetiteWorld(ctx, g, cam, R, t);
+  } else {
+    drawZooWorld(ctx, g, cam, R, t);
   }
   drawTeeth(ctx, g, t);
   drawVeinsAndHoles(ctx, g, cam, t);
@@ -90,11 +93,10 @@ export function draw(ctx, g, cam, fx, view) {
   drawBubbles(ctx, g, t);
   drawAim(ctx, g);
   drawDog(ctx, g, cam, fx, t);
-  if (!w1) {
-    drawAcid(ctx, g, cam, R, t);
-    drawWornAura(ctx, g, cam, t);
-  }
+  if (g.wing === 2) drawAcid(ctx, g, cam, R, t);
+  if (!w1) drawWornAura(ctx, g, cam, t);
   drawMenus(ctx, g, cam, t);
+  if (g.wing === 3) drawZooFront(ctx, g, t);
   drawProj(ctx, g, t);
   drawRipGauge(ctx, g, cam, t);
   drawParticles(ctx, fx, cam);
@@ -109,9 +111,12 @@ export function draw(ctx, g, cam, fx, view) {
 
 function drawBackground(ctx, g, cam, W, H, S, t, tier, inHall) {
   const w2 = g.wing === 2;
-  const k = w2 ? 0 : clamp((cam.x - 3200) / 500, 0, 1);
+  const k = g.wing > 1 ? 0 : clamp((cam.x - 3200) / 500, 0, 1);
   const grd = ctx.createLinearGradient(0, 0, 0, H);
-  if (w2) {
+  if (g.wing === 3) {
+    grd.addColorStop(0, ZOO_SKY[0]);
+    grd.addColorStop(1, ZOO_SKY[1]);
+  } else if (w2) {
     grd.addColorStop(0, APPETITE_SKY[0]);
     grd.addColorStop(1, APPETITE_SKY[1]);
   } else {
@@ -128,7 +133,7 @@ function drawBackground(ctx, g, cam, W, H, S, t, tier, inHall) {
     const par = 0.10 + (i % 3) * 0.05;
     const bx = ((i * 520 - cam.x * par * S) % (W + 900)) - 300;
     const breathe = Math.sin(t * 0.8 + i) * 6;
-    ctx.strokeStyle = `rgba(${g.wing === 2 ? '190,110,40' : inHall ? '60,120,150' : '120,50,90'},${0.07 + (i % 2) * 0.03})`;
+    ctx.strokeStyle = `rgba(${g.wing === 3 ? '70,150,150' : g.wing === 2 ? '190,110,40' : inHall ? '60,120,150' : '120,50,90'},${0.07 + (i % 2) * 0.03})`;
     ctx.beginPath();
     ctx.ellipse(bx, H * 1.05, 380 * S * (1 + breathe / 300), (H * 0.95) - (cam.y * par * 0.2), 0, Math.PI, TAU);
     ctx.stroke();
@@ -136,6 +141,7 @@ function drawBackground(ctx, g, cam, W, H, S, t, tier, inHall) {
   ctx.restore();
 
   if (g.wing === 2) drawAppetiteBack(ctx, cam, W, H, S, t);
+  if (g.wing === 3) drawZooBack(ctx, cam, W, H, S, t);
 
   // idea-stuff motes
   ctx.fillStyle = g.wing === 2 ? 'rgba(240,210,120,0.35)' : 'rgba(255,190,220,0.35)';
@@ -246,10 +252,10 @@ function drawSolids(ctx, g, cam, R, t) {
   const ph = g.t % 3.8;
   for (const s of g.L.solids) {
     if (s.on === false) continue;
-    if (s.ref === 'gate' || s.ref === 'door' || s.ref === 'molar' || s.ref === 'plank' || s.ref === 'glass' || s.ref === 'crumble' || s.ref === 'sphincter') continue;
+    if (s.ref === 'gate' || s.ref === 'door' || s.ref === 'molar' || s.ref === 'plank' || s.ref === 'glass' || s.ref === 'crumble' || s.ref === 'sphincter' || s.ref === 'ticketgate' || s.ref === 'spring' || s.ref === 'shutter' || s.tag === 'kiosk' || s.tag === 'car') continue;
     if (!circleRect(cam.x, cam.y, R, s)) continue;
     const hall = g.wing === 1 && s.x >= 3500 && s.tag !== 'floorB';
-    let fill = g.wing === 2 ? '#3d2214' : C.flesh; let rim = g.wing === 2 ? '#a5622d' : C.fleshHi;
+    let fill = g.wing === 3 ? '#1f3036' : g.wing === 2 ? '#3d2214' : C.flesh; let rim = g.wing === 3 ? '#5fa8a2' : g.wing === 2 ? '#a5622d' : C.fleshHi;
     if (s.kind === 'grip') { fill = hall ? '#173047' : g.wing === 2 ? '#523019' : C.grip; rim = hall ? C.hallHi : g.wing === 2 ? '#f0b060' : C.gripHi; }
     if (s.kind === 'slick') { fill = C.slick; rim = C.slickHi; }
     if (s.kind === 'breath') {
@@ -433,6 +439,8 @@ function drawVeinShape(ctx, v, t, jitter) {
   if (v.law === 'HEARTS') { heartPath(ctx, 0, 0, 12 * pulse); }
   else if (v.law === 'LEAVES') { ctx.rect(-11, -17 * pulse, 22, 34 * pulse); }
   else if (v.law === 'BORED') { ctx.ellipse(0, 2, 17 * pulse, 12, 0, 0, TAU); }
+  else if (v.law === 'SMASH') { for (let i = 0; i < 10; i++) { const a = (i / 10) * TAU; const rad = (i % 2 ? 8 : 18) * pulse; ctx.lineTo(Math.cos(a) * rad, Math.sin(a) * rad); } ctx.closePath(); }
+  else if (v.law === 'OWNS') { ctx.arc(0, 0, 13 * pulse, 0, TAU); }
   else if (big) { ctx.ellipse(0, 0, 20 * pulse, 30 * pulse, 0, 0, TAU); }
   else { ctx.moveTo(-14, -7); ctx.lineTo(4, -13 * pulse); ctx.lineTo(15, -3); ctx.lineTo(9, 12 * pulse); ctx.lineTo(-8, 10); ctx.closePath(); }
   ctx.fill();
@@ -843,11 +851,13 @@ function drawMenus(ctx, g, cam, t) {
     ctx.translate(m.x, m.y + Math.sin(t * 2 + m.x) * 3);
     ctx.rotate(-cam.rot);
     const w = m.accepted ? 78 : 96; const h = m.accepted ? 44 : 34;
-    ctx.fillStyle = C.ui; ctx.strokeStyle = C.uiAccent; ctx.lineWidth = 2;
-    ctx.shadowColor = C.uiAccent; ctx.shadowBlur = 10;
+    const berserk = m.berserk > 0;
+    if (m.sleep) ctx.globalAlpha = 0.45;
+    ctx.fillStyle = berserk ? '#ffe1f6' : C.ui; ctx.strokeStyle = berserk ? '#ff5fd2' : C.uiAccent; ctx.lineWidth = 2;
+    ctx.shadowColor = berserk ? '#ff5fd2' : C.uiAccent; ctx.shadowBlur = berserk ? 22 : 10;
     rr(ctx, -w / 2, -h / 2, w, h, 4); ctx.fill(); ctx.stroke();
     ctx.shadowBlur = 0;
-    ctx.fillStyle = C.uiAccent; ctx.fillRect(-w / 2, -h / 2, w, 8);
+    ctx.fillStyle = berserk ? '#ff5fd2' : C.uiAccent; ctx.fillRect(-w / 2, -h / 2, w, 8);
     ctx.fillStyle = '#0a2a66'; ctx.font = 'bold 8px monospace'; ctx.textAlign = 'center';
     if (m.accepted) {
       ctx.fillText('OBJECTIVES', 0, -h / 2 + 7);
@@ -856,7 +866,9 @@ function drawMenus(ctx, g, cam, t) {
       if (m.hp < 3) { ctx.strokeStyle = '#111'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(-20, -12); ctx.lineTo(-6, 4); ctx.lineTo(10, -6); ctx.lineTo(24, 12); ctx.stroke(); }
     } else {
       ctx.fillText(m.text || 'OBJECTIVE', 0, -h / 2 + 7);
-      ctx.fillText(m.kind === 'arrow' ? '→  →  →' : '[ ] RIP 3 LAWS', 0, 8);
+      if (berserk) ctx.fillText('SMASH SMASH', 0, 8);
+      else if (m.kind === 'docent') ctx.fillText(m.sleep ? 'zzz' : '( ^ _ ^ )', 0, 9);
+      else ctx.fillText(m.kind === 'arrow' ? '→  →  →' : '[ ] RIP 3 LAWS', 0, 8);
     }
     ctx.restore();
   }
@@ -981,7 +993,7 @@ function drawHud(ctx, g, W, H, t) {
   const x0 = W - 214; const y0 = 12;
   slot('MOUTH', p.mouth, x0, y0);
   slot('HAUL', p.haul, x0, y0 + 26);
-  if (g.wing === 2 || p.worn) {
+  if (g.wing >= 2 || p.worn) {
     slot('WORN', p.worn, x0, y0 + 52);
     ctx.fillStyle = 'rgba(0,0,0,0.5)'; rr(ctx, x0, y0 + 78, 200, 22, 4); ctx.fill();
     ctx.strokeStyle = p.hearts > 0 ? '#ff5d7a' : 'rgba(255,255,255,0.18)'; ctx.lineWidth = 1.5; ctx.stroke();

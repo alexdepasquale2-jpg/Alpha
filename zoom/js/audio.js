@@ -136,6 +136,17 @@ export class Sound {
       case 'sphincterOpen': this.tone(90, 45, 1.6, 'sawtooth', 0.3); this.noise(1.4, 'lowpass', 900, 100, 0.4); break;
       case 'surgeWarn': this.tone(70, 55, 2.2, 'sawtooth', 0.22); break;
       case 'surge': this.tone(50, 30, 3, 'sawtooth', 0.4); this.noise(2.4, 'lowpass', 500, 80, 0.4); break;
+      case 'boing': this.tone(200, 900, 0.28, 'sine', 0.2); this.tone(400, 1500, 0.2, 'triangle', 0.08, 0.05); break;
+      case 'gateBite': this.noise(0.1, 'highpass', 2000, 3500, 0.3); this.thump(0.25, 100); break;
+      case 'gateBreak': this.noise(0.5, 'highpass', 1500, 6000, 0.5); this.tone(1000, 120, 0.4, 'triangle', 0.2); break;
+      case 'tooltip': this.tone(1200, 1500, 0.06, 'square', 0.05); break;
+      case 'shotHit': this.tone(900, 500, 0.08, 'square', 0.05); break;
+      case 'clickWind': this.tone(300, 700, 0.9, 'sine', 0.08); break;
+      case 'click': this.tone(180, 60, 0.3, 'square', 0.4); this.noise(0.15, 'bandpass', 3000, 1000, 0.4); this.tone(1800, 1800, 0.03, 'square', 0.2); break;
+      case 'closing': this.tone(700, 550, 0.6, 'triangle', 0.12); this.tone(700, 550, 0.6, 'triangle', 0.12, 0.7); this.tone(700, 550, 0.6, 'triangle', 0.12, 1.4); break;
+      case 'shutter': this.noise(1.3, 'bandpass', 500, 250, 0.3, 0, 3); this.thump(0.5, 60); break;
+      case 'berserk': this.tone(900, 400, 0.4, 'sawtooth', 0.14); break;
+      case 'decoy': this.tone(500, 1000, 0.2, 'sine', 0.14); this.tone(750, 1500, 0.3, 'sine', 0.1, 0.1); break;
       case 'scarFirst': this.tone(110, 220, 1, 'sine', 0.1); break;
       default: break;
     }
