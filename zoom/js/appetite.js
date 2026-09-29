@@ -84,7 +84,7 @@ export function buildAppetite() {
     id, x0, x1, y: home, home, base, top, rise, on: false, bored: 0, fixed: false, bottom: base + 400, ...extra,
   });
   const acid = [
-    zone('lake', -400, 1860, 1000, 1000, 100, 24),
+    zone('lake', -400, 1860, 1000, 1000, 100, 20),
     zone('gully', 1860, 2300, 140, 180, 140, 0, { fixed: true, on: true, bottom: 260 }),
     zone('pit', 2700, 3860, 260, 700, 260, 0, { fixed: true, on: true, bottom: 800 }),
     zone('shaft', 4200, 4480, 300, 300, -1400, 20),

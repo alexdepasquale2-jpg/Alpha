@@ -78,7 +78,7 @@ export function buildZoo() {
   const shutters = [
     { id: 's1', x: 5540, closeAt: 5, state: 'open', p: 0, rect: add(5540, TOP, 30, 0, 'solid', { ref: 'shutter', tag: 'shutter', on: false }) },
     { id: 's2', x: 5900, closeAt: 8.5, state: 'open', p: 0, rect: add(5900, TOP, 30, 0, 'solid', { ref: 'shutter', tag: 'shutter', on: false }) },
-    { id: 's3', x: 6320, closeAt: 12, state: 'open', p: 0, rect: add(6320, TOP, 30, 0, 'solid', { ref: 'shutter', tag: 'shutter', on: false }) },
+    { id: 's3', x: 6320, closeAt: 13, state: 'open', p: 0, rect: add(6320, TOP, 30, 0, 'solid', { ref: 'shutter', tag: 'shutter', on: false }) },
   ];
 
   const doc = (x, y, speed, wake, text = 'WELCOME!') => ({ x, y, speed, wake, text });
@@ -260,7 +260,7 @@ function updatePlacards(g, dt) {
     if (ignoresPlayer || d > 580 || d < 30) continue;
     if (!losClear(g, pl.x, pl.y, tx, ty)) continue;
     pl.cool = (2.4 + (pl.x % 5) * 0.1) * (tier >= 2 ? 0.75 : 1);
-    const sp = 250;
+    const sp = 220;
     g.shots.push({ x: pl.x, y: pl.y + 8, vx: ((tx - pl.x) / d) * sp, vy: ((ty - pl.y) / d) * sp, life: 3, text: pl.text, decoy: !!(D && tx === D.x) });
     emit(g, 'tooltip', { x: pl.x, y: pl.y });
   }
@@ -363,7 +363,7 @@ function updateCursor(g, dt) {
     if (C.t < 0.55) { C.tx = target.x; C.ty = target.y; }
     C.cx += clamp(C.tx - C.cx, -260 * dt, 260 * dt);
     C.cy += clamp(C.ty - 200 - C.cy, -260 * dt, 260 * dt);
-    if (C.t >= 1.0) { C.state = 'click'; C.t = 0; C.hit = false; }
+    if (C.t >= 1.15) { C.state = 'click'; C.t = 0; C.hit = false; }
   } else if (C.state === 'click') {
     C.cx = C.tx; C.cy = C.ty;
     if (!C.hit) {

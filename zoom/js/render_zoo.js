@@ -220,7 +220,7 @@ function drawCursor(ctx, g, t) {
   if (!C.active) return;
   // the telegraph ring
   if (C.state === 'aim' || C.state === 'click') {
-    const k = C.state === 'click' ? 1 : clamp(C.t / 1.0, 0, 1);
+    const k = C.state === 'click' ? 1 : clamp(C.t / 1.15, 0, 1);
     ctx.save();
     ctx.strokeStyle = `rgba(255,70,70,${0.4 + 0.5 * k})`; ctx.lineWidth = 3;
     ctx.beginPath(); ctx.arc(C.tx, C.ty, 66, 0, TAU); ctx.stroke();
