@@ -82,7 +82,8 @@ export function createInput() {
   layer?.addEventListener('contextmenu', (e) => e.preventDefault());
 
   function pad() {
-    const pads = navigator.getGamepads ? navigator.getGamepads() : [];
+    let pads = [];
+    try { pads = navigator.getGamepads ? navigator.getGamepads() : []; } catch { /* blocked by the embedding page */ }
     for (const p of pads) {
       if (!p) continue;
       const b = (i) => !!p.buttons[i]?.pressed;
