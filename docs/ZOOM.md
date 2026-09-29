@@ -3,6 +3,8 @@
 *Game concept + 20-minute vertical-slice design.*
 *Rule zero: if a system isn't fun in the hands, cut it.*
 
+> **Playable:** the §8 slice is built. See [`zoom/README.md`](../zoom/README.md), or `npm run zoom`.
+
 ---
 
 ## 1. Pitch

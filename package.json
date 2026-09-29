@@ -9,7 +9,9 @@
     "test": "node tests/sim.test.mjs",
     "test:matrix": "node tests/sim.test.mjs --matrix",
     "test:browser": "PLAYWRIGHT_BROWSERS_PATH=/opt/pw-browsers node tests/smoke.test.mjs",
-    "test:all": "npm run test && npm run test:browser"
+    "test:all": "npm run test && npm run test:browser",
+    "zoom": "python3 -m http.server 8321 -d zoom",
+    "test:zoom": "node tests/zoom.test.mjs && node tests/zoom_smoke.test.mjs"
   },
   "devDependencies": {
     "playwright": "^1.62.1"
