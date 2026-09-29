@@ -3,7 +3,7 @@
 *Game concept + 20-minute vertical-slice design.*
 *Rule zero: if a system isn't fun in the hands, cut it.*
 
-> **Playable:** the §8 slice is built. See [`zoom/README.md`](../zoom/README.md), or `npm run zoom`.
+> **Playable:** the §8 slice (Contact) and Wing Two (Appetite) are built. See [`zoom/README.md`](../zoom/README.md), or `npm run zoom`.
 
 ---
 
@@ -247,3 +247,24 @@ If (1) fails, fix the geometry, not the text. If (5) fails, the chase is either 
 ---
 
 *The show must go on. The dog is small. The ocean is bored. That's all the plot there is.*
+
+---
+
+## Appendix: what Appetite turned into
+
+Design notes from building Wing Two, where the prototype differs from the wing table in §7.
+
+- **Wearing** is a second slot, not a replacement for carrying. You have a mouth, a haul, and a worn Law.
+  THREE HEARTS is the exception: it grows in and has its own place (three pips), so you can wear a mask *and* hearts.
+- **The clock is acid, not the room.** A rising lake (or a fixed pool) instead of a digesting building. It is
+  Notice-scaled (greed speeds it) and boredom-scaled (hiding in a Scar makes it ebb), which is the same
+  Greed/Boredom loop as Contact turned into terrain.
+- **Boredom has a target.** GETS BORED thrown at the acid drains it for 14 s. That is the whole Law in one gesture.
+- **Maws eat what you carry.** It made Appetite about *appetite*: the danger is not damage, it is losing the chunk
+  in your mouth.
+- **LEAVES THE MEETING worn is the panic button** from the doc: press V again and you are back at your last Scar,
+  minus the Law. It is the only worn Law that costs itself.
+- **The finale is a clench, not a boss.** Ripping the second sign arms the stomach; being swallowed disarms it,
+  and it re-arms when you head back for the balconies. Scar 4 (Hollow Balcony) is mid-climb on purpose: hide there
+  until Notice drops under Stare and the flood ebbs.
+- **Nothing strands you.** If a required Law is gone from the world, ZOOM grows another vein for it.

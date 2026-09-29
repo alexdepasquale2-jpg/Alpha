@@ -7,6 +7,7 @@ import {
   addNotice, hurt, losClear, NOTICE,
 } from './core.js';
 import { beginDigest, smashMenu, acceptMenu } from './sim.js';
+import { updateAppetite, appetiteTargets, applyAppetite } from './appetite.js';
 
 /* ------------------------------------------------------------------ */
 /* chase state                                                         */
@@ -45,6 +46,7 @@ export function targetsAt(g, x, y, r, law) {
   }
   for (const m of g.L.molars) if (!m.cracked && !m.chewed && circleRect(x, y, r, m.rect)) add('molar', m, m.rect.x + m.rect.w / 2, m.rect.y + m.rect.h / 2);
   if (law === 'WONT_CLOSE') for (const s of g.L.scars) if (circleRect(x, y, r, s.zone)) add('scar', s, x, y);
+  if (g.wing === 2) appetiteTargets(g, x, y, r, law, add);
   if (!out.length) return null;
   out.sort((a, b) => a.d - b.d);
   return out[0];
@@ -98,6 +100,10 @@ export function dropPickup(g, law, x, y) {
 /** Write a Law onto a target. Returns false if nothing accepted it (a miss). */
 export function applyToTarget(g, law, t, how) {
   const ref = t.ref;
+  if (g.wing === 2) {
+    const handled = applyAppetite(g, law, t);
+    if (handled !== undefined) return handled;
+  }
   const write = () => emit(g, 'write', { law, x: t.x, y: t.y });
   switch (law) {
     case 'WONT_CLOSE':
@@ -165,6 +171,7 @@ export function updateWorld(g, dt) {
   updatePlank(g, dt);
   updateAmbient(g, dt);
   updateChase(g, dt);
+  if (g.wing === 2) updateAppetite(g, dt);
 }
 
 function updateGate(g, dt) {
@@ -300,7 +307,7 @@ function updateMenus(g, dt) {
     g.comfort = 0;
   }
   // the scripted one on the rib's crest
-  if (!g.flags.crestMenu && p.x > 2620 && p.x < 3260 && p.y < -240) {
+  if (g.wing === 1 && !g.flags.crestMenu && p.x > 2620 && p.x < 3260 && p.y < -240) {
     g.flags.crestMenu = true;
     const m = spawnMenu(g, 3170, -340, 'arrow');
     m.text = 'THIS WAY (USEFUL)';
@@ -323,6 +330,7 @@ function updateMenus(g, dt) {
 }
 
 function launchLand(g, pr, tgt) {
+  if (g.onLand) g.onLand(pr, tgt); // test hook: lets a bot ask where a throw would end up
   const c = g.chase;
   const far = dist(pr.x, pr.y, g.p.x, g.p.y) > 170;
   if (c.state === 'hunt' && tgt.type === 'surface' && pr.law !== 'STATIC' && far) {

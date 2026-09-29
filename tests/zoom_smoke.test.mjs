@@ -86,6 +86,36 @@ await page.evaluate(`window.__zoom.g.k = 1`);
 await page.waitForTimeout(700);
 check('chase, roll, static and windows render without errors', errors.length === 0, errors.join(' | '));
 
+// ---- wing two boots too, and the wear key does something
+{
+  const p2 = await browser.newPage({ viewport: { width: 960, height: 540 } });
+  const errs2 = [];
+  p2.on('pageerror', (e) => errs2.push(e.message));
+  p2.on('console', (m) => { if (m.type() === 'error') errs2.push(m.text()); });
+  await p2.goto(`${BASE}/index.html?wing=2`);
+  await p2.waitForFunction('window.__zoom');
+  await p2.click('#start');
+  check('?wing=2 boots the stomach', await p2.evaluate('window.__zoom.g.wing') === 2);
+  await p2.evaluate(`(() => { const g = window.__zoom.g; g.p.mouth = 'BORED'; })()`);
+  await p2.keyboard.down('KeyV');
+  await p2.waitForTimeout(120);
+  await p2.keyboard.up('KeyV');
+  await p2.waitForTimeout(150);
+  check('V wears the Law in your mouth', await p2.evaluate('window.__zoom.g.p.worn') === 'BORED');
+  await p2.evaluate(`(() => {
+    const g = window.__zoom.g;
+    g.p.hearts = 2; g.p.worn = 'LOOKS';
+    g.p.x = 3040; g.p.y = 100;
+    g.L.maws[0].state = 'wind'; g.L.maws[0].t = 0.3;
+    g.L.acid[3].on = true; g.L.acid[4].on = true; g.L.acid[4].y = -900; g.L.surge.on = true;
+  })()`);
+  await p2.waitForTimeout(900);
+  await p2.evaluate(`window.__zoom.g.p.x = 5000; window.__zoom.g.p.y = -910; window.__zoom.g.p.inAcid = true; window.__zoom.g.p.acidT = 1`);
+  await p2.waitForTimeout(500);
+  check('acid, maws, glass, hearts and masks render without errors', errs2.length === 0, errs2.join(' | '));
+  await p2.close();
+}
+
 await browser.close();
 console.log(`\n${passed} passed, ${failed} failed`);
 await done(failed ? 1 : 0);

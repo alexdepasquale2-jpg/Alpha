@@ -123,6 +123,19 @@ export class Sound {
       case 'spit': this.noise(0.25, 'bandpass', 900, 300, 0.4); this.thump(0.5, 80); break;
       case 'fall': this.tone(500, 100, 0.35, 'triangle', 0.1); break;
       case 'end': this.tone(220, 110, 4, 'sine', 0.2); this.tone(330, 165, 4, 'sine', 0.12); break;
+      case 'wear': this.tone(300, 600, 0.12, 'triangle', 0.14); this.tone(600, 900, 0.16, 'sine', 0.1, 0.1); break;
+      case 'unwear': this.tone(500, 260, 0.14, 'triangle', 0.1); break;
+      case 'wearFail': this.tone(160, 120, 0.12, 'square', 0.06); break;
+      case 'heart': this.tone(700, 90, 0.4, 'sawtooth', 0.2); this.noise(0.25, 'lowpass', 900, 200, 0.35); break;
+      case 'heartsGone': this.tone(400, 60, 0.9, 'sine', 0.2); break;
+      case 'eject': this.noise(0.4, 'highpass', 800, 5000, 0.3); this.tone(900, 200, 0.5, 'triangle', 0.15); break;
+      case 'mawWind': this.tone(120, 210, 0.7, 'sawtooth', 0.07); break;
+      case 'mawSnap': this.noise(0.14, 'bandpass', 1400, 500, 0.5, 0, 2); this.thump(0.35, 70); break;
+      case 'glassOn': this.tone(1400 + Math.random() * 600, 2200, 0.18, 'sine', 0.05); break;
+      case 'glassOff': this.tone(900, 400, 0.14, 'sine', 0.03); break;
+      case 'sphincterOpen': this.tone(90, 45, 1.6, 'sawtooth', 0.3); this.noise(1.4, 'lowpass', 900, 100, 0.4); break;
+      case 'surgeWarn': this.tone(70, 55, 2.2, 'sawtooth', 0.22); break;
+      case 'surge': this.tone(50, 30, 3, 'sawtooth', 0.4); this.noise(2.4, 'lowpass', 500, 80, 0.4); break;
       case 'scarFirst': this.tone(110, 220, 1, 'sine', 0.1); break;
       default: break;
     }

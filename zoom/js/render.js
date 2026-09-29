@@ -4,6 +4,7 @@ import { LAWS } from './laws.js';
 import { clamp, lerp, pointIn, circleRect, dist } from './geom.js';
 import { GV, TV, tierOf, lawsCarried } from './core.js';
 import { launchVelocity } from './sim.js';
+import { APPETITE_SKY, drawAppetiteBack, drawAppetiteWorld, drawAcid, drawWornBody, drawWornAura, drawAcidOverlay, heartPath } from './render_appetite.js';
 
 const TAU = Math.PI * 2;
 const VIEW_H = 540; // logical height before zoom
@@ -49,7 +50,8 @@ export function draw(ctx, g, cam, fx, view) {
   const t = g.t;
   const tier = tierOf(g.notice);
   const R = Math.hypot(W, H) / (2 * S) + 160; // cull radius in world units
-  const inHall = cam.x > 3300;
+  const w1 = g.wing === 1;
+  const inHall = w1 && cam.x > 3300;
 
   drawBackground(ctx, g, cam, W, H, S, t, tier, inHall);
 
@@ -62,24 +64,36 @@ export function draw(ctx, g, cam, fx, view) {
 
   const vis = (r) => circleRect(cam.x, cam.y, R, r);
 
-  drawDecor(ctx, g, vis, t);
+  if (w1) drawDecor(ctx, g, vis, t);
   drawScars(ctx, g, vis, t);
   drawSolids(ctx, g, cam, R, t);
-  drawCurtains(ctx, g, vis, t);
-  drawGateAndDoor(ctx, g, t);
-  drawMolars(ctx, g, t);
+  if (w1) {
+    drawCurtains(ctx, g, vis, t);
+    drawGateAndDoor(ctx, g, t);
+    drawMolars(ctx, g, t);
+  } else {
+    drawAppetiteWorld(ctx, g, cam, R, t);
+  }
   drawTeeth(ctx, g, t);
   drawVeinsAndHoles(ctx, g, cam, t);
-  drawPanes(ctx, g, t);
-  drawEye(ctx, g, cam, t);
+  if (w1) {
+    drawPanes(ctx, g, t);
+    drawEye(ctx, g, cam, t);
+  }
   drawPickups(ctx, g, cam, t);
-  drawWarden(ctx, g, cam, t);
-  drawMites(ctx, g, t);
-  drawPlank(ctx, g);
+  if (w1) {
+    drawWarden(ctx, g, cam, t);
+    drawMites(ctx, g, t);
+    drawPlank(ctx, g);
+  }
   drawWindows(ctx, g, t);
   drawBubbles(ctx, g, t);
   drawAim(ctx, g);
   drawDog(ctx, g, cam, fx, t);
+  if (!w1) {
+    drawAcid(ctx, g, cam, R, t);
+    drawWornAura(ctx, g, cam, t);
+  }
   drawMenus(ctx, g, cam, t);
   drawProj(ctx, g, t);
   drawRipGauge(ctx, g, cam, t);
@@ -94,10 +108,16 @@ export function draw(ctx, g, cam, fx, view) {
 /* ------------------------------------------------------------------ */
 
 function drawBackground(ctx, g, cam, W, H, S, t, tier, inHall) {
-  const k = clamp((cam.x - 3200) / 500, 0, 1);
+  const w2 = g.wing === 2;
+  const k = w2 ? 0 : clamp((cam.x - 3200) / 500, 0, 1);
   const grd = ctx.createLinearGradient(0, 0, 0, H);
-  grd.addColorStop(0, mix('#0d0716', '#07131f', k));
-  grd.addColorStop(1, mix('#22092a', '#0e2233', k));
+  if (w2) {
+    grd.addColorStop(0, APPETITE_SKY[0]);
+    grd.addColorStop(1, APPETITE_SKY[1]);
+  } else {
+    grd.addColorStop(0, mix('#0d0716', '#07131f', k));
+    grd.addColorStop(1, mix('#22092a', '#0e2233', k));
+  }
   ctx.fillStyle = grd;
   ctx.fillRect(0, 0, W, H);
 
@@ -108,15 +128,17 @@ function drawBackground(ctx, g, cam, W, H, S, t, tier, inHall) {
     const par = 0.10 + (i % 3) * 0.05;
     const bx = ((i * 520 - cam.x * par * S) % (W + 900)) - 300;
     const breathe = Math.sin(t * 0.8 + i) * 6;
-    ctx.strokeStyle = `rgba(${inHall ? '60,120,150' : '120,50,90'},${0.07 + (i % 2) * 0.03})`;
+    ctx.strokeStyle = `rgba(${g.wing === 2 ? '190,110,40' : inHall ? '60,120,150' : '120,50,90'},${0.07 + (i % 2) * 0.03})`;
     ctx.beginPath();
     ctx.ellipse(bx, H * 1.05, 380 * S * (1 + breathe / 300), (H * 0.95) - (cam.y * par * 0.2), 0, Math.PI, TAU);
     ctx.stroke();
   }
   ctx.restore();
 
+  if (g.wing === 2) drawAppetiteBack(ctx, cam, W, H, S, t);
+
   // idea-stuff motes
-  ctx.fillStyle = 'rgba(255,190,220,0.35)';
+  ctx.fillStyle = g.wing === 2 ? 'rgba(240,210,120,0.35)' : 'rgba(255,190,220,0.35)';
   for (let i = 0; i < 46; i++) {
     const px = ((i * 197.3 + t * (6 + (i % 5) * 3) - cam.x * 0.35 * S) % (W + 40) + W + 40) % (W + 40) - 20;
     const py = ((i * 89.7 + Math.sin(t * 0.4 + i) * 30 - cam.y * 0.25 * S) % (H + 40) + H + 40) % (H + 40) - 20;
@@ -224,11 +246,11 @@ function drawSolids(ctx, g, cam, R, t) {
   const ph = g.t % 3.8;
   for (const s of g.L.solids) {
     if (s.on === false) continue;
-    if (s.ref === 'gate' || s.ref === 'door' || s.ref === 'molar' || s.ref === 'plank') continue;
+    if (s.ref === 'gate' || s.ref === 'door' || s.ref === 'molar' || s.ref === 'plank' || s.ref === 'glass' || s.ref === 'crumble' || s.ref === 'sphincter') continue;
     if (!circleRect(cam.x, cam.y, R, s)) continue;
-    const hall = s.x >= 3500 && s.tag !== 'floorB';
-    let fill = C.flesh; let rim = C.fleshHi;
-    if (s.kind === 'grip') { fill = hall ? '#173047' : C.grip; rim = hall ? C.hallHi : C.gripHi; }
+    const hall = g.wing === 1 && s.x >= 3500 && s.tag !== 'floorB';
+    let fill = g.wing === 2 ? '#3d2214' : C.flesh; let rim = g.wing === 2 ? '#a5622d' : C.fleshHi;
+    if (s.kind === 'grip') { fill = hall ? '#173047' : g.wing === 2 ? '#523019' : C.grip; rim = hall ? C.hallHi : g.wing === 2 ? '#f0b060' : C.gripHi; }
     if (s.kind === 'slick') { fill = C.slick; rim = C.slickHi; }
     if (s.kind === 'breath') {
       const k = exhale ? 1 - clamp((ph - 1.9) / 0.6, 0, 1) : 0;
@@ -408,7 +430,10 @@ function drawVeinShape(ctx, v, t, jitter) {
   ctx.globalAlpha = 0.9;
   const big = v.law === 'LOOKS';
   ctx.beginPath();
-  if (big) { ctx.ellipse(0, 0, 20 * pulse, 30 * pulse, 0, 0, TAU); }
+  if (v.law === 'HEARTS') { heartPath(ctx, 0, 0, 12 * pulse); }
+  else if (v.law === 'LEAVES') { ctx.rect(-11, -17 * pulse, 22, 34 * pulse); }
+  else if (v.law === 'BORED') { ctx.ellipse(0, 2, 17 * pulse, 12, 0, 0, TAU); }
+  else if (big) { ctx.ellipse(0, 0, 20 * pulse, 30 * pulse, 0, 0, TAU); }
   else { ctx.moveTo(-14, -7); ctx.lineTo(4, -13 * pulse); ctx.lineTo(15, -3); ctx.lineTo(9, 12 * pulse); ctx.lineTo(-8, 10); ctx.closePath(); }
   ctx.fill();
   ctx.shadowBlur = 0;
@@ -796,6 +821,7 @@ function drawDog(ctx, g, cam, fx, t) {
   // eye: huge and offended
   ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.ellipse(13.5, -5, 3, 3.4, 0, 0, TAU); ctx.fill();
   ctx.fillStyle = '#111'; ctx.beginPath(); ctx.arc(14.4, -5, 1.7, 0, TAU); ctx.fill();
+  drawWornBody(ctx, p, t);
   // mouth Law
   if (p.mouth) {
     ctx.save(); ctx.translate(21, 1 + (g.aim ? -3 : 0)); chunk(ctx, LAWS[p.mouth].color, 1.2); ctx.restore();
@@ -907,6 +933,7 @@ function drawOverlay(ctx, g, cam, fx, W, H, S, t, tier) {
     ctx.restore();
   }
 
+  if (g.wing === 2) drawAcidOverlay(ctx, g, W, H, t);
   drawHud(ctx, g, W, H, t);
 
   if (g.line) {
@@ -944,15 +971,25 @@ function drawHud(ctx, g, W, H, t) {
   ctx.save();
   ctx.font = '11px monospace'; ctx.textAlign = 'left';
   const slot = (label, id, x, y) => {
-    ctx.fillStyle = 'rgba(0,0,0,0.5)'; rr(ctx, x, y, 158, 22, 4); ctx.fill();
+    ctx.fillStyle = 'rgba(0,0,0,0.5)'; rr(ctx, x, y, 200, 22, 4); ctx.fill();
     ctx.strokeStyle = id ? LAWS[id].color : 'rgba(255,255,255,0.18)'; ctx.lineWidth = 1.5; ctx.stroke();
     ctx.fillStyle = 'rgba(255,255,255,0.45)'; ctx.fillText(label, x + 7, y + 15);
     if (id) {
       ctx.fillStyle = LAWS[id].color; ctx.fillText(LAWS[id].name, x + 52, y + 15);
     } else { ctx.fillStyle = 'rgba(255,255,255,0.2)'; ctx.fillText('—', x + 52, y + 15); }
   };
-  const x0 = W - 172; const y0 = 12;
+  const x0 = W - 214; const y0 = 12;
   slot('MOUTH', p.mouth, x0, y0);
   slot('HAUL', p.haul, x0, y0 + 26);
+  if (g.wing === 2 || p.worn) {
+    slot('WORN', p.worn, x0, y0 + 52);
+    ctx.fillStyle = 'rgba(0,0,0,0.5)'; rr(ctx, x0, y0 + 78, 200, 22, 4); ctx.fill();
+    ctx.strokeStyle = p.hearts > 0 ? '#ff5d7a' : 'rgba(255,255,255,0.18)'; ctx.lineWidth = 1.5; ctx.stroke();
+    ctx.fillStyle = 'rgba(255,255,255,0.45)'; ctx.fillText('HEARTS', x0 + 7, y0 + 93);
+    for (let i = 0; i < 3; i++) {
+      ctx.fillStyle = i < p.hearts ? '#ff5d7a' : 'rgba(255,255,255,0.16)';
+      heartPath(ctx, x0 + 72 + i * 18, y0 + 89, 5); ctx.fill();
+    }
+  }
   ctx.restore();
 }

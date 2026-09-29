@@ -14,7 +14,8 @@ const endEl = document.getElementById('endcard');
 const input = createInput();
 const audio = new Sound();
 
-let g = newGame();
+const startWing = new URLSearchParams(location.search).get('wing') === '2' ? 2 : 1;
+let g = newGame(undefined, { wing: startWing });
 const cam = { x: g.p.x, y: g.p.y - 40, zoom: 1.5, rot: 0 };
 const fx = { parts: [], shake: 0, sway: 0, dogAng: 0, dogFace: 1, debug: new URLSearchParams(location.search).has('debug') };
 const view = { w: 0, h: 0 };
@@ -84,6 +85,14 @@ function handle(e) {
     case 'inhale': fx.shake = 6; break;
     case 'digest': fx.shake = 16; vibrate(200); break;
     case 'end': showEnd(); break;
+    case 'wear': burst(g.p.x, g.p.y - 6, LAWS[e.law].color, 18, 150, 0.6, 3); popup(g.p.x, g.p.y - 30, LAWS[e.law].name, LAWS[e.law].color, 10); break;
+    case 'heart': fx.shake = Math.max(fx.shake, 12); burst(g.p.x, g.p.y - 10, '#ff5d7a', 16, 200, 0.6, 4); popup(g.p.x, g.p.y - 30, e.left > 0 ? 'POP' : 'LAST ONE', '#ff9ab0', 12); vibrate(60); break;
+    case 'eject': burst(g.p.x, g.p.y, '#ffb45e', 30, 260, 0.8, 4); fx.shake = 8; break;
+    case 'mawSnap': if (Math.hypot(e.x - g.p.x, e.y - g.p.y) < 400) fx.shake = Math.max(fx.shake, 6); break;
+    case 'surge': fx.shake = 24; break;
+    case 'surgeWarn': fx.shake = 8; break;
+    case 'sphincterOpen': fx.shake = 14; break;
+    case 'glassOn': burst(e.x, e.y, '#a8ecff', 3, 40, 0.4, 2); break;
     case 'menuSpawn': burst(e.x, e.y, '#2f7dff', 10, 90, 0.5, 3); break;
     case 'plank': burst(3310, -262, '#2f7dff', 12, 90, 0.6, 3); break;
     case 'teethGrow': case 'footTeeth': burst(e.x, e.y, '#efe2c8', 6, 90, 0.3, 2.5); break;
@@ -92,7 +101,18 @@ function handle(e) {
 }
 
 function showEnd() {
-  const held = [g.p.mouth, g.p.haul].filter(Boolean).map((id) => LAWS[id].name);
+  const held = [g.p.worn, g.p.mouth, g.p.haul].filter(Boolean).map((id) => LAWS[id].name);
+  if (g.p.hearts > 0) held.push(`${g.p.hearts} HEARTS`);
+  const w2 = g.wing === 2;
+  document.getElementById('end-title').textContent = w2 ? 'APPETITE' : 'CONTACT';
+  document.getElementById('end-sub').textContent = w2 ? 'WING TWO, SURVIVED' : 'WING ONE, SURVIVED';
+  document.getElementById('end-tag').innerHTML = w2
+    ? 'The sphincter forgets what it was for.<br>The stomach is still hungry. Just not for you.'
+    : 'You crawl out of the tooth into black.<br>The ocean mutters your footsteps.';
+  document.getElementById('next').textContent = w2 ? 'WING THREE: THE ZOO' : 'CONTINUE: APPETITE';
+  document.getElementById('next').disabled = w2;
+  document.getElementById('next').style.opacity = w2 ? '0.35' : '1';
+  document.getElementById('end-note').textContent = w2 ? 'The Zoo is not built yet. The rest is in docs/ZOOM.md.' : '';
   document.getElementById('end-laws').textContent = held.length ? held.join('  +  ') : 'nothing. you crawl out with your teeth.';
   document.getElementById('end-holes').textContent = g.stats.holes;
   document.getElementById('end-perfect').textContent = g.stats.perfect;
@@ -124,7 +144,7 @@ function updateCamera(dt) {
   const [lx, ly] = toWorld(g, p.face * 70, -34);
   const tx = p.x + lx; const ty = p.y + ly;
   const inHall = p.x > g.L.hall.x0;
-  let zt = 1.5;
+  let zt = g.wing === 2 ? 1.3 : 1.5;
   if (p.grip) zt = 1.12;                                   // pull back: small on a moving rib
   if (g.aim) zt = 1.3;
   if (g.chase.state === 'hunt' || g.chase.state === 'opening') zt = 1.05;
@@ -172,14 +192,22 @@ function begin() {
   g.phase = 'play';
 }
 
-function restart() {
-  g = newGame(Math.floor(Math.random() * 1e6));
+function launch(wing, carry) {
+  g = newGame(Math.floor(Math.random() * 1e6), { wing, carry });
   cam.x = g.p.x; cam.y = g.p.y - 40; cam.rot = 0; cam.zoom = 1.5;
   fx.parts.length = 0;
   endEl.classList.remove('on');
   g.phase = 'play';
   started = true;
   window.__zoom.g = g;
+}
+
+function restart() { launch(g.wing); }
+
+function nextWing() {
+  if (g.wing !== 1 || !g.end) return;
+  const p = g.p;
+  launch(2, { mouth: p.mouth, haul: p.haul, worn: p.worn, hearts: p.hearts, stats: g.stats });
 }
 
 input.onFirst = (e) => {
@@ -196,6 +224,8 @@ window.addEventListener('keydown', (e) => {
 });
 document.getElementById('start')?.addEventListener('click', begin);
 document.getElementById('again')?.addEventListener('click', restart);
+document.getElementById('next')?.addEventListener('click', nextWing);
+document.getElementById('start2')?.addEventListener('click', () => { if (!started) { launch(2); titleEl.classList.remove('on'); audio.start(); } });
 document.getElementById('touch')?.addEventListener('pointerdown', () => { if (!started) begin(); });
 
 /* ---------------- loop ---------------- */
@@ -231,4 +261,6 @@ window.__zoom = {
   setInput(fn) { override = fn; },
   begin,
   restart,
+  launch,
+  nextWing,
 };

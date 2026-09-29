@@ -4,7 +4,7 @@ const KEYS = {
   left: ['ArrowLeft', 'KeyA'], right: ['ArrowRight', 'KeyD'], up: ['ArrowUp', 'KeyW'], down: ['ArrowDown', 'KeyS'],
   jump: ['Space', 'KeyK', 'KeyZ'], grip: ['ShiftLeft', 'ShiftRight', 'KeyX', 'KeyJ'],
   rip: ['KeyE', 'KeyL'], thr: ['KeyF', 'KeyI'], hide: ['KeyC', 'ArrowDown', 'KeyS'],
-  swap: ['KeyQ', 'KeyU'], bark: ['KeyB'],
+  swap: ['KeyQ', 'KeyU'], wear: ['KeyV', 'KeyG'], bark: ['KeyB'],
 };
 
 export function createInput() {
@@ -90,7 +90,7 @@ export function createInput() {
       const ax = p.axes[0] || 0; const ay = p.axes[1] || 0;
       return {
         mx: Math.abs(ax) > 0.2 ? ax : 0, my: Math.abs(ay) > 0.3 ? ay : 0,
-        jump: b(0), grip: b(7) || b(5), rip: b(2), thr: b(1), hide: b(3), swap: b(4), bark: b(11),
+        jump: b(0), grip: b(7) || b(5), rip: b(2), thr: b(1), hide: b(3), swap: b(4), wear: b(6), bark: b(11),
       };
     }
     return null;
@@ -110,6 +110,7 @@ export function createInput() {
       thr: isDown('thr') || th('thr') || !!gp?.thr,
       hide: isDown('hide') || th('hide') || !!gp?.hide,
       swap: isDown('swap') || th('swap') || !!gp?.swap,
+      wear: isDown('wear') || th('wear') || !!gp?.wear,
       bark: isDown('bark') || th('bark') || !!gp?.bark,
     };
     // Up on a stick or key should never count as "hide"

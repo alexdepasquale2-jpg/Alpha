@@ -54,15 +54,18 @@ export function toScreen(g, wx, wy) {
 }
 
 export function lawsCarried(g) {
-  return (g.p.mouth ? 1 : 0) + (g.p.haul ? 1 : 0);
+  return (g.p.mouth ? 1 : 0) + (g.p.haul ? 1 : 0) + (g.p.worn ? 1 : 0) + (g.p.hearts > 0 ? 1 : 0);
 }
 
 export function heaviestLaw(g) {
-  const { mouth, haul } = g.p;
-  if (!mouth && !haul) return null;
-  if (!haul) return 'mouth';
-  if (!mouth) return 'haul';
-  return LAWS[haul].weight > LAWS[mouth].weight ? 'haul' : 'mouth';
+  let best = null;
+  let bw = -1;
+  for (const slot of ['mouth', 'haul', 'worn']) {
+    const id = g.p[slot];
+    if (id && LAWS[id].weight > bw) { bw = LAWS[id].weight; best = slot; }
+  }
+  if (g.p.hearts > 0 && LAWS.HEARTS.weight > bw) best = 'hearts';
+  return best;
 }
 
 export function inBubble(g, x, y) {

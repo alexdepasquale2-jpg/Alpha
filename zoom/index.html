@@ -11,10 +11,10 @@
     font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; touch-action:none; user-select:none; -webkit-user-select:none; }
   canvas { position:fixed; inset:0; display:block; }
 
-  .card { position:fixed; inset:0; display:none; align-items:center; justify-content:center; padding:20px;
+  .card { position:fixed; inset:0; display:none; align-items:center; justify-content:center; padding:20px; overflow-y:auto;
     background: radial-gradient(ellipse at 50% 40%, rgba(40,8,50,.78), rgba(4,2,8,.94)); z-index:20; text-align:center; }
   .card.on { display:flex; }
-  .card .inner { max-width:640px; width:100%; }
+  .card .inner { max-width:640px; width:100%; margin:auto; }
   h1 { margin:0 0 4px; font-size:clamp(30px,7vw,64px); letter-spacing:.06em; line-height:1; color:#fff;
     text-shadow: 0 0 22px rgba(255,111,163,.65), 3px 0 0 rgba(255,60,120,.7), -3px 0 0 rgba(90,220,255,.6); }
   h1 small { display:block; font-size:.34em; letter-spacing:.34em; color:var(--hot); margin-top:8px; text-shadow:none; }
@@ -24,6 +24,7 @@
   .go { display:inline-block; padding:12px 26px; background:var(--hot); color:#1a0510; font-weight:800; letter-spacing:.14em; border:0; border-radius:6px;
     font-family:inherit; font-size:15px; cursor:pointer; box-shadow: 0 0 24px rgba(255,111,163,.5); }
   .go:active { transform: translateY(1px); }
+  .go.alt { background: transparent; color: var(--hot); border: 2px solid var(--hot); box-shadow: none; margin-left:10px; }
   .small { margin-top:14px; font-size:11px; color:#8a6a7a; }
   .stats { display:grid; grid-template-columns:1fr auto; gap:5px 24px; max-width:340px; margin:14px auto; text-align:left; font-size:14px; color:#e8c6d4; }
   .stats span:nth-child(even) { color:#fff; text-align:right; }
@@ -45,6 +46,7 @@
   #b-thr { right:98px; bottom:104px; }
   #b-hide { right:184px; bottom:22px; }
   #b-swap { right:190px; bottom:96px; }
+  #b-wear { right:244px; bottom:96px; }
   #b-bark { right:20px; bottom:188px; }
   #stick-base, #stick-knob { position:absolute; border-radius:50%; transform:translate(-50%,-50%); display:none; pointer-events:none; }
   #stick-base.on, #stick-knob.on { display:block; }
@@ -63,6 +65,7 @@
   <div id="b-thr" data-btn="thr">THROW</div>
   <div id="b-hide" data-btn="hide">HIDE</div>
   <div id="b-swap" class="small" data-btn="swap">SWAP</div>
+  <div id="b-wear" class="small" data-btn="wear">WEAR</div>
   <div id="b-bark" class="small" data-btn="bark">BARK</div>
 </div>
 
@@ -78,17 +81,19 @@
       <b>F</b><span>tap to jam it in, hold to throw (W S aims)</span>
       <b>S / C</b><span>hold inside a Scar to hide</span>
       <b>Q</b><span>swap mouth / haul (in a Scar: stash)</span>
+      <b>V</b><span>wear the Law in your mouth (wing 2). wear it again to take it off</span>
       <b>B</b><span>bark (does nothing. on purpose.)</span>
     </div>
     <button id="start" class="go">START</button>
+    <button id="start2" class="go alt">WING 2: APPETITE</button>
     <div class="small">Touch controls appear when you touch the screen &middot; R restarts &middot; H shows this again &middot; ` debug</div>
   </div>
 </div>
 
 <div id="endcard" class="card">
   <div class="inner">
-    <h1>CONTACT<small>WING ONE, SURVIVED</small></h1>
-    <div class="tag">You crawl out of the tooth into black.<br>The ocean mutters your footsteps.</div>
+    <h1><span id="end-title">CONTACT</span><small id="end-sub">WING ONE, SURVIVED</small></h1>
+    <div class="tag" id="end-tag">You crawl out of the tooth into black.<br>The ocean mutters your footsteps.</div>
     <div class="laws" id="end-laws"></div>
     <div class="stats">
       <span>Holes made</span><span id="end-holes"></span>
@@ -98,7 +103,9 @@
       <span>Times swallowed</span><span id="end-digests"></span>
       <span>Time</span><span id="end-time"></span>
     </div>
-    <button id="again" class="go">AGAIN</button>
+    <button id="next" class="go">CONTINUE: APPETITE</button>
+    <button id="again" class="go alt">AGAIN</button>
+    <div class="small" id="end-note"></div>
   </div>
 </div>
 

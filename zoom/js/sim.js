@@ -4,6 +4,7 @@
 import { clamp, sign, dist, overlap, pointIn, rng } from './geom.js';
 import { LAWS } from './laws.js';
 import { buildLevel } from './level.js';
+import { buildAppetite, eject, resetAppetiteAfterDigest, onAppetiteRip } from './appetite.js';
 import {
   DT, GV, TV, NOTICE, tierOf, emit, say, boxOf, blockedAt, toWorld, toScreen,
   lawsCarried, heaviestLaw, inBubble, inHall, addNotice,
@@ -12,15 +13,20 @@ import { updateWorld, startChase, resetChase, targetsAt, applyToTarget } from '.
 
 export { DT, tierOf, TIER_NAMES } from './core.js';
 
-export function newGame(seed = 7) {
-  const L = buildLevel();
-  return {
-    t: 0, phase: 'play', L, k: 0, rand: rng(seed),
+/**
+ * opts.wing  1 = Contact, 2 = Appetite
+ * opts.carry {mouth, haul, worn, stats} from the wing before
+ */
+export function newGame(seed = 7, opts = {}) {
+  const wing = opts.wing || 1;
+  const L = wing === 2 ? buildAppetite() : buildLevel();
+  const g = {
+    t: 0, phase: 'play', wing, L, k: 0, rand: rng(seed),
     p: {
       x: L.spawn.x, y: L.spawn.y, vx: 0, vy: 0, w: 20, h: 20, face: 1,
       grounded: false, coyote: 0, jbuf: 0, jumping: false,
       grip: false, gripDir: [0, 0], gripLock: 0, gripKind: null,
-      hiding: false, scar: null, mouth: null, haul: null,
+      hiding: false, scar: null, mouth: null, haul: null, worn: null, hearts: 0, acidT: 0, inAcid: false,
       stun: 0, inv: 0, sprint: 0, loud: false, moving: false, anim: 0,
     },
     spawn: { ...L.spawn },
@@ -32,20 +38,33 @@ export function newGame(seed = 7) {
     ev: [], line: null, lineT: 0, digest: null, end: null,
     frameRipped: false, breathEx: true, flags: {},
   };
+  if (opts.carry) {
+    const c = opts.carry;
+    g.p.mouth = c.mouth || null; g.p.haul = c.haul || null; g.p.worn = c.worn || null;
+    g.p.hearts = c.hearts || 0;
+    if (c.stats) g.stats = { ...c.stats };
+  }
+  if (wing === 2) {
+    // the swallow: you arrive from above
+    g.p.y = L.spawn.y - 420;
+    g.spawn = { x: L.spawn.x, y: L.spawn.y - 10 };
+    g.line = 'you were swallowed. it was inevitable.'; g.lineT = 4;
+  }
+  return g;
 }
 
 /* ------------------------------------------------------------------ */
 /* step                                                                */
 /* ------------------------------------------------------------------ */
 
-const EMPTY_INPUT = { mx: 0, my: 0, jump: false, grip: false, rip: false, thr: false, hide: false, swap: false, bark: false };
+const EMPTY_INPUT = { mx: 0, my: 0, jump: false, grip: false, rip: false, thr: false, hide: false, swap: false, wear: false, bark: false };
 
 export function step(g, inp = EMPTY_INPUT, dt = DT) {
   inp = { ...EMPTY_INPUT, ...inp };
   const prev = g.prev;
   const e = {
     jump: inp.jump && !prev.jump, rip: inp.rip && !prev.rip, ripUp: !inp.rip && prev.rip,
-    thr: inp.thr && !prev.thr, thrUp: !inp.thr && prev.thr, swap: inp.swap && !prev.swap, bark: inp.bark && !prev.bark,
+    thr: inp.thr && !prev.thr, thrUp: !inp.thr && prev.thr, swap: inp.swap && !prev.swap, wear: inp.wear && !prev.wear, bark: inp.bark && !prev.bark,
   };
   g.prev = inp;
   if (g.phase === 'title') return;
@@ -62,6 +81,7 @@ export function step(g, inp = EMPTY_INPUT, dt = DT) {
   updateRip(g, inp, e, dt);
   updateThrow(g, inp, e, dt);
   updatePickup(g, inp, e);
+  if (e.wear) toggleWear(g);
   if (e.bark) emit(g, 'bark');
   updateWorld(g, dt);
   updateNotice(g, dt);
@@ -82,7 +102,7 @@ function scarAt(g) {
 }
 
 function scarUsable(s) {
-  if (!s || s.noHide) return false;
+  if (!s || s.noHide || s.flooded) return false;
   if (s.needsOpen && !s.open) return false;
   return true;
 }
@@ -197,6 +217,7 @@ function updatePlayer(g, inp, e, dt) {
 
   let vt = p.vx * T[0] + p.vy * T[1];
   let vn = p.vx * G[0] + p.vy * G[1];
+  const lean = [0, 0];
 
   if (p.grip) {
     const sd = toScreen(g, p.gripDir[0], p.gripDir[1]);
@@ -218,7 +239,7 @@ function updatePlayer(g, inp, e, dt) {
     }
   } else {
     // --- run ---
-    const load = (p.mouth ? 0.93 : 1) * (p.haul ? 0.82 : 1) * (g.menuMode ? 0.85 : 1);
+    const load = (p.mouth ? 0.93 : 1) * (p.haul ? 0.82 : 1) * (g.menuMode ? 0.85 : 1) * (p.worn === 'BORED' ? 0.92 : 1) * (p.inAcid ? 0.62 : 1);
     if (p.grounded && Math.abs(mx) > 0.3) p.sprint = Math.min(1, p.sprint + dt / 2);
     else p.sprint = Math.max(0, p.sprint - dt * 2.5);
     if (control) {
@@ -231,17 +252,20 @@ function updatePlayer(g, inp, e, dt) {
     }
     vn = Math.min(vn + 1800 * dt, 850);
     if (p.jbuf > 0 && p.coyote > 0 && control) {
-      vn = -610; p.jbuf = 0; p.coyote = 0; p.jumping = true;
+      vn = p.inAcid ? -470 : -610; p.jbuf = 0; p.coyote = 0; p.jumping = true;
       emit(g, 'jump');
     }
     if (p.jumping && !inp.jump && vn < -200) { vn = -200; p.jumping = false; }
     p.vx = T[0] * vt + G[0] * vn;
     p.vy = T[1] * vt + G[1] * vn;
     if (p.mantle && p.mantle.t > 0) {
-      // keep leaning into the wall we just climbed until we are over its lip
+      // keep leaning into the wall we just climbed until we are over its lip.
+      // This is a displacement only: never write it into the velocity, or it
+      // compounds every frame and flings the dog across the map.
       p.mantle.t -= dt;
-      p.vx += p.mantle.dir[0] * 150;
-      p.vy += p.mantle.dir[1] * 150;
+      lean[0] = p.mantle.dir[0] * 150;
+      lean[1] = p.mantle.dir[1] * 150;
+      if (p.grounded) p.mantle = null;
     }
     // the ocean inhaling (chase)
     if (g.chase.wind > 0 && !p.hiding) {
@@ -253,7 +277,10 @@ function updatePlayer(g, inp, e, dt) {
   }
 
   if (p.hiding) { p.vx = 0; p.vy = 0; }
-  moveBody(g, p, p.vx * dt, p.vy * dt);
+  // nothing the dog does should ever exceed this; a bug that tries gets clamped
+  const sp = Math.hypot(p.vx, p.vy);
+  if (sp > 1100) { p.vx *= 1100 / sp; p.vy *= 1100 / sp; }
+  moveBody(g, p, (p.vx + lean[0]) * dt, (p.vy + lean[1]) * dt);
 
   const sv = toScreen(g, p.vx, p.vy);
   if (control && Math.abs(mx) > 0.1) p.face = sign(mx);
@@ -307,6 +334,39 @@ function updateHide(g, inp, e, dt) {
   }
   if (!p.hiding && e.swap && !g.aim) swapSlots(g);
   g.sag = Math.max(0, g.sag - dt);
+}
+
+/** V: put the Law in your mouth on (or take it off). LEAVES THE MEETING worn + V = leave. */
+function toggleWear(g) {
+  const p = g.p;
+  if (p.hiding || g.rip || g.aim || p.stun > 0) return;
+  const wearable = p.mouth && LAWS[p.mouth].wearable ? 'mouth' : p.haul && LAWS[p.haul].wearable ? 'haul' : null;
+  // THREE HEARTS grows in and has its own place on you; it never comes off
+  const hearts = wearable && p[wearable] === 'HEARTS';
+  if (hearts) {
+    if (p.hearts > 0) { say(g, 'you already have hearts. greedy.'); emit(g, 'wearFail'); return; }
+    p[wearable] = null;
+    if (wearable === 'mouth') { p.mouth = p.haul; p.haul = null; }
+    p.hearts = 3;
+    emit(g, 'wear', { law: 'HEARTS' });
+    return;
+  }
+  if (p.worn) {
+    if (p.worn === 'LEAVES') { eject(g); return; }
+    const id = p.worn;
+    p.worn = null;
+    if (!p.mouth) p.mouth = id;
+    else if (!p.haul) p.haul = id;
+    else g.pickups.push({ law: id, x: p.x, y: p.y, born: g.t });
+    emit(g, 'unwear', { law: id });
+    return;
+  }
+  if (!wearable) { emit(g, 'wearFail'); return; }
+  const id = p[wearable];
+  p[wearable] = null;
+  if (wearable === 'mouth') { p.mouth = p.haul; p.haul = null; }
+  p.worn = id;
+  emit(g, 'wear', { law: id });
 }
 
 function swapSlots(g) {
@@ -387,7 +447,7 @@ function finishRip(g, r, perfect) {
   v.taken = true;
   g.stats.holes++;
   if (perfect) g.stats.perfect++;
-  let cost = law.notice * (perfect ? 1 : 1.6);
+  let cost = (v.cost ?? law.notice) * (perfect ? 1 : 1.6);
   if (g.sag > 0) cost *= 0.5;
   giveLaw(g, v.law, v.x, v.y);
   emit(g, 'rip', { law: v.law, perfect, x: v.x, y: v.y });
@@ -406,6 +466,7 @@ function finishRip(g, r, perfect) {
     startChase(g);
     say(g, 'I LOOKED.', 3);
   }
+  if (g.wing === 2) onAppetiteRip(g, v);
   if (v.id !== 'frame') addNotice(g, cost);
   g.comfort = 0;
 }
@@ -527,6 +588,8 @@ function updateNotice(g, dt) {
   else if (g.menuMode) rate = g.notice < 70 ? 2.4 : 0; // being useful never lets you cool off
   else if (!p.moving && !g.rip) rate = -1.6;
   if (p.moving && !p.hiding) rate += 0.15 * lawsCarried(g);
+  if (p.worn === 'LOOKS' && !p.hiding) rate += 0.6;   // ZOOM can see through it too
+  if (p.worn === 'BORED' && !p.hiding && !g.menuMode) rate -= 2.5;
   g.notice = clamp(g.notice + rate * dt, g.floor, inHall(g) ? NOTICE.max : 92);
   g.peak = Math.max(g.peak, g.notice);
 }
@@ -552,6 +615,7 @@ function updateDigest(g, dt) {
   if (g.digest.t > 2.8) {
     const slot = heaviestLaw(g);
     if (slot) { g.p[slot] = null; }
+    if (slot === 'hearts') g.p.hearts = 0;
     if (slot && !g.p.mouth && g.p.haul) { g.p.mouth = g.p.haul; g.p.haul = null; }
     g.digest = null;
     const p = g.p;
@@ -567,6 +631,7 @@ function updateDigest(g, dt) {
       respawn(g);
       g.notice = Math.min(g.notice, 45);
     }
+    if (g.wing === 2) resetAppetiteAfterDigest(g);
     p.inv = 2;
     emit(g, 'spit');
   }
