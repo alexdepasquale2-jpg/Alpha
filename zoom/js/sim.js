@@ -194,8 +194,8 @@ function updatePlayer(g, inp, e, dt) {
   const my = control ? inp.my : 0;
 
   p.grounded = blockedAt(g, p, G[0] * 2, G[1] * 2);
-  p.coyote = p.grounded ? 0.12 : Math.max(0, p.coyote - dt);
-  p.jbuf = e.jump && control ? 0.11 : Math.max(0, p.jbuf - dt);
+  p.coyote = p.grounded ? 0.14 : Math.max(0, p.coyote - dt);
+  p.jbuf = e.jump && control ? 0.14 : Math.max(0, p.jbuf - dt);
   if (p.grounded) p.jumping = false;
 
   // --- grip ---
@@ -251,6 +251,7 @@ function updatePlayer(g, inp, e, dt) {
     // --- run ---
     const load = (p.mouth ? 0.93 : 1) * (p.haul ? 0.82 : 1) * (g.menuMode ? 0.85 : 1) * (p.worn === 'BORED' ? 0.92 : 1) * (p.inAcid ? 0.62 : 1);
     if (p.grounded && Math.abs(mx) > 0.3) p.sprint = Math.min(1, p.sprint + dt / 2);
+    else if (!p.grounded && Math.abs(mx) > 0.3) p.sprint = Math.min(1, p.sprint + dt / 4); // keep your speed through a jump
     else p.sprint = Math.max(0, p.sprint - dt * 2.5);
     if (control) {
       const top = (230 + p.sprint * 80) * load;
@@ -260,7 +261,8 @@ function updatePlayer(g, inp, e, dt) {
     } else if (!p.stun) {
       vt = approach(vt, 0, 3000 * dt);
     }
-    vn = Math.min(vn + 1800 * dt, 850);
+    // a touch of hang at the top of a held jump
+    vn = Math.min(vn + 1800 * (p.jumping && inp.jump && Math.abs(vn) < 110 ? 0.75 : 1) * dt, 850);
     if (p.jbuf > 0 && p.coyote > 0 && control) {
       vn = p.inAcid ? -470 : -610; p.jbuf = 0; p.coyote = 0; p.jumping = true;
       emit(g, 'jump');

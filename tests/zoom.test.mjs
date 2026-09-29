@@ -5,7 +5,7 @@
 //     node tests/zoom.test.mjs
 
 import {
-  newGame, step, DT, hold, tap, goTo, walkTo, creepTo, ripHere, solveThrow, doThrow, teleport,
+  newGame, step, DT, hold, tap, goTo, walkTo, creepTo, hopChain, ripHere, solveThrow, doThrow, teleport,
 } from './zoom_bot.mjs';
 import { tierOf, losClear } from '../zoom/js/core.js';
 import { angDiff } from '../zoom/js/geom.js';
@@ -87,8 +87,7 @@ function stageClimb(g) {
 
 /** Crest: TEETH on the side ledge, smash the Menu, jump the gap, slide down, hide in Scar 2. */
 function stageCrest(g) {
-  goTo(g, 2588, { tol: 3 }); hold(g, { mx: 1, jump: true }, 0.36); hold(g, {}, 0.6);
-  goTo(g, 2652, { tol: 3 }); hold(g, { mx: 1, jump: true }, 0.3); hold(g, { mx: 0 }, 0.8);
+  hopChain(g, [{ x0: 2540, x1: 2580 }, { x0: 2600, x1: 2660, top: -330 }, { x0: 2690, x1: 2800, top: -400 }]);
   goTo(g, 2712, { tol: 4 });
   const before = g.notice;
   ripHere(g);
